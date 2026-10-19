@@ -5,6 +5,8 @@ function PhotoEditor({ sourceImage, sourceType, onBack }) {
   const [brightness, setBrightness] = useState(0)
   const [contrast, setContrast] = useState(0)
   const [processedImage, setProcessedImage] = useState('')
+  const [processingError, setProcessingError] = useState('')
+  const [isProcessing, setIsProcessing] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -12,6 +14,12 @@ function PhotoEditor({ sourceImage, sourceType, onBack }) {
     processPhoto(sourceImage, { brightness, contrast }).then((result) => {
       if (active) {
         setProcessedImage(result)
+        setIsProcessing(false)
+      }
+    }).catch(() => {
+      if (active) {
+        setProcessingError('The photo could not be processed. Please try again.')
+        setIsProcessing(false)
       }
     })
 
@@ -21,8 +29,22 @@ function PhotoEditor({ sourceImage, sourceType, onBack }) {
   }, [sourceImage, brightness, contrast])
 
   function resetControls() {
+    setIsProcessing(true)
+    setProcessingError('')
     setBrightness(0)
     setContrast(0)
+  }
+
+  function changeBrightness(value) {
+    setIsProcessing(true)
+    setProcessingError('')
+    setBrightness(Number(value))
+  }
+
+  function changeContrast(value) {
+    setIsProcessing(true)
+    setProcessingError('')
+    setContrast(Number(value))
   }
 
   function downloadImage() {
@@ -45,6 +67,8 @@ function PhotoEditor({ sourceImage, sourceType, onBack }) {
       ) : (
         <p>Processing photo...</p>
       )}
+      {processingError && <p role="alert" className="error">{processingError}</p>}
+      {isProcessing && <p aria-live="polite">Updating preview...</p>}
 
       <div className="photo-controls">
         <label htmlFor="brightness">
@@ -56,7 +80,7 @@ function PhotoEditor({ sourceImage, sourceType, onBack }) {
           min="-100"
           max="100"
           value={brightness}
-          onChange={(event) => setBrightness(Number(event.target.value))}
+          onChange={(event) => changeBrightness(event.target.value)}
         />
 
         <label htmlFor="contrast">Contrast: {contrast}</label>
@@ -66,7 +90,7 @@ function PhotoEditor({ sourceImage, sourceType, onBack }) {
           min="-100"
           max="100"
           value={contrast}
-          onChange={(event) => setContrast(Number(event.target.value))}
+          onChange={(event) => changeContrast(event.target.value)}
         />
       </div>
 
@@ -80,7 +104,7 @@ function PhotoEditor({ sourceImage, sourceType, onBack }) {
         <button
           type="button"
           onClick={downloadImage}
-          disabled={!processedImage}
+          disabled={!processedImage || isProcessing}
         >
           Download PNG
         </button>

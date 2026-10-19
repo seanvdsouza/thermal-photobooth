@@ -59,6 +59,10 @@ function PhotoUpload({ onBack, onContinue }) {
       if (active) {
         setThermalCropUrl(result)
       }
+    }).catch(() => {
+      if (active) {
+        setError('The thermal preview could not be generated.')
+      }
     })
 
     return () => {
