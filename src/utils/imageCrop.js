@@ -1,6 +1,13 @@
+import { PRINTER_WIDTH } from './imageConfig.js'
+
 export function createSquareCrop(
   image,
-  { outputSize = 576, viewportSize, zoom = 1, position = { x: 0, y: 0 } },
+  {
+    outputSize = PRINTER_WIDTH,
+    viewportSize,
+    zoom = 1,
+    position = { x: 0, y: 0 },
+  },
 ) {
   const canvas = document.createElement('canvas')
   canvas.width = outputSize

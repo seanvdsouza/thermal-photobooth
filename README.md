@@ -1,16 +1,47 @@
-# React + Vite
+# Thermal Photobooth
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A browser-based photobooth that creates black-and-white thermal-style PNGs.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Install dependencies:
 
-## React Compiler
+```bash
+npm install
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Start the development server:
 
-## Expanding the ESLint configuration
+```bash
+npm run dev
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Open the local URL shown by Vite, usually `http://localhost:5173/`.
+
+Useful checks:
+
+```bash
+npm run lint
+npm run build
+```
+
+## Current functionality
+
+- Upload an image and preview it.
+- Crop, zoom, and reposition the image in a square frame.
+- Capture an image from a camera on supported browsers.
+- Switch between front and rear cameras where supported.
+- Apply brightness, contrast, grayscale, and Floyd–Steinberg dithering.
+- Download a Polaroid-style PNG.
+
+All image processing happens in the browser. No image is uploaded to a server.
+
+## Camera testing
+
+Camera access generally works on a computer using `localhost`. For testing on a phone over a local network, use HTTPS with a trusted local development certificate, such as one created with `mkcert`. A plain `http://<MacBook-LAN-IP>` address is generally not a secure context for camera access.
+
+Camera behavior and front/rear camera availability vary between browsers and devices.
+
+## Printer status
+
+Printer integration is not implemented yet. The current `576` pixel width is a configurable provisional value and must be verified against the actual Xprinter XP-80T before hardware printing is added.

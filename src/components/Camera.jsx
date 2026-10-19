@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { PRINTER_WIDTH } from '../utils/imageConfig.js'
 import { applyDither } from '../utils/imageProcessing.js'
 
 function Camera({ onCapture, onBack }) {
@@ -114,8 +115,8 @@ function Camera({ onCapture, onBack }) {
     const sourceX = (video.videoWidth - size) / 2
     const sourceY = (video.videoHeight - size) / 2
     const canvas = document.createElement('canvas')
-    canvas.width = 576
-    canvas.height = 576
+    canvas.width = PRINTER_WIDTH
+    canvas.height = PRINTER_WIDTH
     const context = canvas.getContext('2d')
 
     if (facingMode === 'user') {

@@ -1,3 +1,9 @@
+import {
+  PHOTO_BOTTOM_MARGIN,
+  PHOTO_MARGIN,
+  PRINTER_WIDTH,
+} from './imageConfig.js'
+
 function loadImage(source) {
   return new Promise((resolve, reject) => {
     const image = new Image()
@@ -54,7 +60,7 @@ export function applyDither(imageData, brightness = 0, contrast = 0) {
 
 export async function processPhoto(
   source,
-  { brightness = 0, contrast = 0, photoSize = 576 } = {},
+  { brightness = 0, contrast = 0, photoSize = PRINTER_WIDTH } = {},
 ) {
   const image = await loadImage(source)
   const photoCanvas = createProcessedPhotoCanvas(image, {
@@ -63,15 +69,13 @@ export async function processPhoto(
     photoSize,
   })
 
-  const margin = 32
-  const bottomMargin = 96
   const outputCanvas = document.createElement('canvas')
-  outputCanvas.width = photoSize + margin * 2
-  outputCanvas.height = photoSize + margin + bottomMargin
+  outputCanvas.width = photoSize + PHOTO_MARGIN * 2
+  outputCanvas.height = photoSize + PHOTO_MARGIN + PHOTO_BOTTOM_MARGIN
   const outputContext = outputCanvas.getContext('2d')
   outputContext.fillStyle = 'white'
   outputContext.fillRect(0, 0, outputCanvas.width, outputCanvas.height)
-  outputContext.drawImage(photoCanvas, margin, margin)
+  outputContext.drawImage(photoCanvas, PHOTO_MARGIN, PHOTO_MARGIN)
 
   return outputCanvas.toDataURL('image/png')
 }
@@ -95,7 +99,7 @@ function createProcessedPhotoCanvas(
 
 export async function processSquarePhoto(
   source,
-  { brightness = 0, contrast = 0, photoSize = 576 } = {},
+  { brightness = 0, contrast = 0, photoSize = PRINTER_WIDTH } = {},
 ) {
   const image = await loadImage(source)
   const photoCanvas = createProcessedPhotoCanvas(image, {
