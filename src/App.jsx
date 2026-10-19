@@ -45,8 +45,19 @@ function App() {
     setScreen('editor')
   }
 
+  function goHome() {
+    setSelectedImage('')
+    setSourceType('')
+    setScreen('source')
+  }
+
   return (
     <main>
+      {screen !== 'source' && (
+        <button type="button" className="home-button" onClick={goHome}>
+          Home
+        </button>
+      )}
       {screen === 'source' ? (
         <SourcePicker onChooseSource={setScreen} />
       ) : screen === 'camera' ? (

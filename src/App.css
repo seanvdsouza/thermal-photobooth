@@ -5,6 +5,12 @@ main {
   text-align: center;
 }
 
+.home-button {
+  display: block;
+  margin-left: auto;
+  margin-bottom: 24px;
+}
+
 .source-actions {
   display: flex;
   gap: 12px;

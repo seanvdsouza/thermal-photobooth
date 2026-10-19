@@ -250,12 +250,10 @@ function PhotoUpload({ onBack, onContinue }) {
           </button>
           {croppedImageUrl && (
             <div className="cropped-result">
-              <h2>Square crop result</h2>
-              <img src={croppedImageUrl} alt="Your square cropped photo" />
               {thermalCropUrl && (
                 <>
-                  <h2>Thermal preview</h2>
-                  <img src={thermalCropUrl} alt="Thermal preview of your square crop" />
+                  <h2>Preview</h2>
+                  <img src={thermalCropUrl} alt="Preview of your cropped photo" />
                 </>
               )}
               <button type="button" onClick={() => onContinue(croppedImageUrl)}>
