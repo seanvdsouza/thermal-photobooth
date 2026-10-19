@@ -11,6 +11,7 @@ function PhotoUpload({ onBack, onContinue }) {
   const [croppedImageUrl, setCroppedImageUrl] = useState('')
   const [thermalCropUrl, setThermalCropUrl] = useState('')
   const cropAreaRef = useRef(null)
+  const cropImageRef = useRef(null)
   const dragStart = useRef(null)
 
   useEffect(() => {
@@ -127,10 +128,11 @@ function PhotoUpload({ onBack, onContinue }) {
     }
 
     const start = dragStart.current
-    setPosition({
+    const nextPosition = {
       x: start.position.x + event.clientX - start.pointerX,
       y: start.position.y + event.clientY - start.pointerY,
-    })
+    }
+    setPosition(clampPosition(nextPosition, zoom))
   }
 
   function stopDragging() {
@@ -140,6 +142,48 @@ function PhotoUpload({ onBack, onContinue }) {
   function resetCrop() {
     setZoom(1)
     setPosition({ x: 0, y: 0 })
+  }
+
+  function clampPosition(nextPosition, nextZoom) {
+    const cropArea = cropAreaRef.current
+    const image = cropImageRef.current
+
+    if (!cropArea || !image?.naturalWidth || !image.naturalHeight) {
+      return nextPosition
+    }
+
+    const viewportSize = cropArea.clientWidth
+    const imageScale = Math.max(
+      viewportSize / image.naturalWidth,
+      viewportSize / image.naturalHeight,
+    )
+    const renderedWidth = image.naturalWidth * imageScale * nextZoom
+    const renderedHeight = image.naturalHeight * imageScale * nextZoom
+    const maxX = Math.max(0, (renderedWidth - viewportSize) / 2)
+    const maxY = Math.max(0, (renderedHeight - viewportSize) / 2)
+
+    return {
+      x: Math.max(-maxX, Math.min(maxX, nextPosition.x)),
+      y: Math.max(-maxY, Math.min(maxY, nextPosition.y)),
+    }
+  }
+
+  function handleZoomChange(value) {
+    const nextZoom = Number(value)
+    setZoom(nextZoom)
+    setPosition((currentPosition) => clampPosition(currentPosition, nextZoom))
+  }
+
+  function moveCrop(deltaX, deltaY) {
+    setPosition((currentPosition) =>
+      clampPosition(
+        {
+          x: currentPosition.x + deltaX,
+          y: currentPosition.y + deltaY,
+        },
+        zoom,
+      ),
+    )
   }
 
   return (
@@ -168,6 +212,7 @@ function PhotoUpload({ onBack, onContinue }) {
             onPointerCancel={stopDragging}
           >
             <img
+              ref={cropImageRef}
               src={imageUrl}
               alt={fileName}
               onError={handleImageError}
@@ -184,8 +229,22 @@ function PhotoUpload({ onBack, onContinue }) {
             max="3"
             step="0.01"
             value={zoom}
-            onChange={(event) => setZoom(Number(event.target.value))}
+            onChange={(event) => handleZoomChange(event.target.value)}
           />
+          <div className="crop-nudge-controls" aria-label="Reposition crop">
+            <button type="button" onClick={() => moveCrop(0, -10)} aria-label="Move crop up">
+              ↑
+            </button>
+            <button type="button" onClick={() => moveCrop(-10, 0)} aria-label="Move crop left">
+              ←
+            </button>
+            <button type="button" onClick={() => moveCrop(10, 0)} aria-label="Move crop right">
+              →
+            </button>
+            <button type="button" onClick={() => moveCrop(0, 10)} aria-label="Move crop down">
+              ↓
+            </button>
+          </div>
           <button type="button" onClick={resetCrop}>
             Reset Crop
           </button>

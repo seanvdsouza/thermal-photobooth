@@ -69,6 +69,13 @@ input[type='file'] {
   margin: 12px auto 16px;
 }
 
+.crop-nudge-controls {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
 .cropped-result {
   margin: 24px auto;
 }
