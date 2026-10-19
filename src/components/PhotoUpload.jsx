@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createSquareCrop } from '../utils/imageCrop.js'
+import { processSquarePhoto } from '../utils/imageProcessing.js'
 
 function PhotoUpload({ onBack, onContinue }) {
   const [imageUrl, setImageUrl] = useState('')
@@ -8,6 +9,7 @@ function PhotoUpload({ onBack, onContinue }) {
   const [zoom, setZoom] = useState(1)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [croppedImageUrl, setCroppedImageUrl] = useState('')
+  const [thermalCropUrl, setThermalCropUrl] = useState('')
   const cropAreaRef = useRef(null)
   const dragStart = useRef(null)
 
@@ -47,6 +49,23 @@ function PhotoUpload({ onBack, onContinue }) {
     }
   }, [imageUrl, zoom, position])
 
+  useEffect(() => {
+    if (!croppedImageUrl) {
+      return undefined
+    }
+
+    let active = true
+    processSquarePhoto(croppedImageUrl).then((result) => {
+      if (active) {
+        setThermalCropUrl(result)
+      }
+    })
+
+    return () => {
+      active = false
+    }
+  }, [croppedImageUrl])
+
   function handleFileChange(event) {
     const file = event.target.files[0]
     event.target.value = ''
@@ -71,6 +90,7 @@ function PhotoUpload({ onBack, onContinue }) {
     setFileName(file.name)
     setError('')
     setCroppedImageUrl('')
+    setThermalCropUrl('')
     setZoom(1)
     setPosition({ x: 0, y: 0 })
   }
@@ -85,6 +105,7 @@ function PhotoUpload({ onBack, onContinue }) {
     })
     setFileName('')
     setCroppedImageUrl('')
+    setThermalCropUrl('')
   }
 
   function handlePointerDown(event) {
@@ -168,6 +189,12 @@ function PhotoUpload({ onBack, onContinue }) {
             <div className="cropped-result">
               <h2>Square crop result</h2>
               <img src={croppedImageUrl} alt="Your square cropped photo" />
+              {thermalCropUrl && (
+                <>
+                  <h2>Thermal preview</h2>
+                  <img src={thermalCropUrl} alt="Thermal preview of your square crop" />
+                </>
+              )}
               <button type="button" onClick={() => onContinue(croppedImageUrl)}>
                 Continue to Editor
               </button>

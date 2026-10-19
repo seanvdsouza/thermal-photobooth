@@ -37,9 +37,11 @@ function PlaceholderScreen({ onBack }) {
 function App() {
   const [screen, setScreen] = useState('source')
   const [selectedImage, setSelectedImage] = useState('')
+  const [sourceType, setSourceType] = useState('')
 
-  function openEditor(image) {
+  function openEditor(image, source) {
     setSelectedImage(image)
+    setSourceType(source)
     setScreen('editor')
   }
 
@@ -48,16 +50,20 @@ function App() {
       {screen === 'source' ? (
         <SourcePicker onChooseSource={setScreen} />
       ) : screen === 'camera' ? (
-        <Camera onCapture={openEditor} onBack={() => setScreen('source')} />
+        <Camera
+          onCapture={(image) => openEditor(image, 'camera')}
+          onBack={() => setScreen('source')}
+        />
       ) : screen === 'upload' ? (
         <PhotoUpload
           onBack={() => setScreen('source')}
-          onContinue={openEditor}
+          onContinue={(image) => openEditor(image, 'upload')}
         />
       ) : screen === 'editor' ? (
         <PhotoEditor
           sourceImage={selectedImage}
-          onBack={() => setScreen('upload')}
+          sourceType={sourceType}
+          onBack={() => setScreen(sourceType)}
         />
       ) : (
         <PlaceholderScreen onBack={() => setScreen('source')} />

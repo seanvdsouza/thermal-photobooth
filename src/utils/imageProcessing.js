@@ -7,7 +7,7 @@ function loadImage(source) {
   })
 }
 
-function applyDither(imageData, brightness, contrast) {
+export function applyDither(imageData, brightness = 0, contrast = 0) {
   const { data, width, height } = imageData
   const factor = (259 * (contrast + 255)) / (255 * (259 - contrast))
   const grayscale = new Array(width * height)
@@ -57,15 +57,11 @@ export async function processPhoto(
   { brightness = 0, contrast = 0, photoSize = 576 } = {},
 ) {
   const image = await loadImage(source)
-  const photoCanvas = document.createElement('canvas')
-  photoCanvas.width = photoSize
-  photoCanvas.height = photoSize
-  const photoContext = photoCanvas.getContext('2d')
-  photoContext.drawImage(image, 0, 0, photoSize, photoSize)
-
-  const imageData = photoContext.getImageData(0, 0, photoSize, photoSize)
-  applyDither(imageData, brightness, contrast)
-  photoContext.putImageData(imageData, 0, 0)
+  const photoCanvas = createProcessedPhotoCanvas(image, {
+    brightness,
+    contrast,
+    photoSize,
+  })
 
   const margin = 32
   const bottomMargin = 96
@@ -78,4 +74,34 @@ export async function processPhoto(
   outputContext.drawImage(photoCanvas, margin, margin)
 
   return outputCanvas.toDataURL('image/png')
+}
+
+function createProcessedPhotoCanvas(
+  image,
+  { brightness = 0, contrast = 0, photoSize = 576 },
+) {
+  const photoCanvas = document.createElement('canvas')
+  photoCanvas.width = photoSize
+  photoCanvas.height = photoSize
+  const photoContext = photoCanvas.getContext('2d')
+  photoContext.drawImage(image, 0, 0, photoSize, photoSize)
+
+  const imageData = photoContext.getImageData(0, 0, photoSize, photoSize)
+  applyDither(imageData, brightness, contrast)
+  photoContext.putImageData(imageData, 0, 0)
+
+  return photoCanvas
+}
+
+export async function processSquarePhoto(
+  source,
+  { brightness = 0, contrast = 0, photoSize = 576 } = {},
+) {
+  const image = await loadImage(source)
+  const photoCanvas = createProcessedPhotoCanvas(image, {
+    brightness,
+    contrast,
+    photoSize,
+  })
+  return photoCanvas.toDataURL('image/png')
 }

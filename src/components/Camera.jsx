@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { applyDither } from '../utils/imageProcessing.js'
 
 function Camera({ onCapture, onBack }) {
   const videoRef = useRef(null)
@@ -91,16 +92,7 @@ function Camera({ onCapture, onBack }) {
         context.restore()
 
         const imageData = context.getImageData(0, 0, canvas.width, canvas.height)
-        for (let index = 0; index < imageData.data.length; index += 4) {
-          const grayscale =
-            0.299 * imageData.data[index] +
-            0.587 * imageData.data[index + 1] +
-            0.114 * imageData.data[index + 2]
-          const value = grayscale < 128 ? 0 : 255
-          imageData.data[index] = value
-          imageData.data[index + 1] = value
-          imageData.data[index + 2] = value
-        }
+        applyDither(imageData)
         context.putImageData(imageData, 0, 0)
       }
 

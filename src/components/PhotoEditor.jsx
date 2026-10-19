@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { processPhoto } from '../utils/imageProcessing.js'
 
-function PhotoEditor({ sourceImage, onBack }) {
+function PhotoEditor({ sourceImage, sourceType, onBack }) {
   const [brightness, setBrightness] = useState(0)
   const [contrast, setContrast] = useState(0)
   const [processedImage, setProcessedImage] = useState('')
@@ -75,7 +75,7 @@ function PhotoEditor({ sourceImage, onBack }) {
           Reset
         </button>
         <button type="button" onClick={onBack}>
-          Choose Another
+          {sourceType === 'camera' ? 'Retake' : 'Choose Another'}
         </button>
         <button
           type="button"
