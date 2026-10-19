@@ -134,6 +134,31 @@ input[type='file'] {
   color: #a00;
 }
 
+.camera-frame {
+  width: min(80vw, 576px);
+  aspect-ratio: 1;
+  margin: 24px auto;
+  overflow: hidden;
+  background: #ddd;
+}
+
+.camera-frame video {
+  display: none;
+}
+
+.camera-frame canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.camera-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+}
+
 @media (max-width: 480px) {
   .source-actions {
     flex-direction: column;

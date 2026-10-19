@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Camera from './components/Camera.jsx'
 import PhotoEditor from './components/PhotoEditor.jsx'
 import PhotoUpload from './components/PhotoUpload.jsx'
 import './App.css'
@@ -46,6 +47,8 @@ function App() {
     <main>
       {screen === 'source' ? (
         <SourcePicker onChooseSource={setScreen} />
+      ) : screen === 'camera' ? (
+        <Camera onCapture={openEditor} onBack={() => setScreen('source')} />
       ) : screen === 'upload' ? (
         <PhotoUpload
           onBack={() => setScreen('source')}
@@ -57,9 +60,7 @@ function App() {
           onBack={() => setScreen('upload')}
         />
       ) : (
-        <PlaceholderScreen
-          onBack={() => setScreen('source')}
-        />
+        <PlaceholderScreen onBack={() => setScreen('source')} />
       )}
     </main>
   )
