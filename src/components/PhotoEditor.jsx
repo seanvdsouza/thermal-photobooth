@@ -6,6 +6,7 @@ function PhotoEditor({ sourceImage, sourceType, onBack }) {
   const [contrast, setContrast] = useState(0)
   const [processedImage, setProcessedImage] = useState('')
   const [processingError, setProcessingError] = useState('')
+  const [downloadError, setDownloadError] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
 
   useEffect(() => {
@@ -47,11 +48,51 @@ function PhotoEditor({ sourceImage, sourceType, onBack }) {
     setContrast(Number(value))
   }
 
-  function downloadImage() {
-    const link = document.createElement('a')
-    link.href = processedImage
-    link.download = 'thermal-photobooth.png'
-    link.click()
+  async function downloadImage() {
+    setDownloadError('')
+
+    try {
+      const response = await fetch(processedImage)
+      const blob = await response.blob()
+      const file = new File([blob], 'thermal-photobooth.png', {
+        type: 'image/png',
+      })
+
+      if (
+        navigator.share &&
+        navigator.canShare &&
+        navigator.canShare({ files: [file] })
+      ) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Thermal photobooth image',
+          })
+          return
+        } catch (error) {
+          if (error.name === 'AbortError') {
+            return
+          }
+        }
+      }
+
+      const imageUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = imageUrl
+      link.download = 'thermal-photobooth.png'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(imageUrl), 1000)
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        setDownloadError('Download was not available. Use Open PNG to Save instead.')
+      }
+    }
+  }
+
+  function openImage() {
+    window.open(processedImage, '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -68,6 +109,7 @@ function PhotoEditor({ sourceImage, sourceType, onBack }) {
         <p>Processing photo...</p>
       )}
       {processingError && <p role="alert" className="error">{processingError}</p>}
+      {downloadError && <p role="alert" className="error">{downloadError}</p>}
       {isProcessing && <p aria-live="polite">Updating preview...</p>}
 
       <div className="photo-controls">
@@ -107,6 +149,13 @@ function PhotoEditor({ sourceImage, sourceType, onBack }) {
           disabled={!processedImage || isProcessing}
         >
           Download PNG
+        </button>
+        <button
+          type="button"
+          onClick={openImage}
+          disabled={!processedImage || isProcessing}
+        >
+          Open PNG to Save
         </button>
       </div>
     </section>

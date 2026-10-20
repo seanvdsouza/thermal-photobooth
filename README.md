@@ -33,6 +33,7 @@ npm run build
 - Switch between front and rear cameras where supported.
 - Apply brightness, contrast, grayscale, and Floyd–Steinberg dithering.
 - Download a Polaroid-style PNG.
+- Open the PNG directly as a mobile save fallback.
 
 All image processing happens in the browser. No image is uploaded to a server.
 

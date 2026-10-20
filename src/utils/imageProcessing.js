@@ -82,7 +82,7 @@ export async function processPhoto(
 
 function createProcessedPhotoCanvas(
   image,
-  { brightness = 0, contrast = 0, photoSize = 576 },
+  { brightness = 0, contrast = 0, photoSize = PRINTER_WIDTH },
 ) {
   const photoCanvas = document.createElement('canvas')
   photoCanvas.width = photoSize
