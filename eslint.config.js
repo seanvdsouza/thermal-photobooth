@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'thermal-photobooth copy']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -16,6 +16,12 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+  },
+  {
+    files: ['vite.config.js', 'eslint.config.js', 'src/utils/*.test.js', 'experiments/*.test.js', 'server/**/*.js', 'scripts/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
     },
   },
 ])

@@ -1,111 +1,70 @@
-import {
-  PHOTO_BOTTOM_MARGIN,
-  PHOTO_MARGIN,
-  PRINTER_WIDTH,
-} from './imageConfig.js'
+import { drawCrop } from './imageCrop.js';
+import { applyThermalEffect } from '../../shared/photo-look.js';
+export { applyThermalEffect } from '../../shared/photo-look.js';
+import config from '../../printer/config.json';
 
-function loadImage(source) {
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error('The image could not be processed.'))
-    image.src = source
-  })
+export const PHOTO_SIZE = config.printableWidthDots;
+// Visual paper geometry is upright. Printer feed order/rotation is separate.
+// The final physical layout was approved by the user; margins are approximate.
+export const PAPER = {
+  width: PHOTO_SIZE + config.previewSideMarginDots * 2,
+  top: config.previewTopMarginDots,
+  bottom: config.previewBottomMarginDots,
+  side: config.previewSideMarginDots,
+};
+
+export function processPhoto(source, crop, brightness = 0, contrast = 0, look) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = PHOTO_SIZE;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  context.fillStyle = 'white';
+  context.fillRect(0, 0, PHOTO_SIZE, PHOTO_SIZE);
+  drawCrop(context, source, crop, PHOTO_SIZE);
+  const image = context.getImageData(0, 0, PHOTO_SIZE, PHOTO_SIZE);
+  const black = applyThermalEffect(image, brightness, contrast, look);
+  context.putImageData(image, 0, 0);
+  return { canvas, black };
 }
 
-export function applyDither(imageData, brightness = 0, contrast = 0) {
-  const { data, width, height } = imageData
-  const factor = (259 * (contrast + 255)) / (255 * (259 - contrast))
-  const grayscale = new Array(width * height)
-
-  for (let index = 0; index < grayscale.length; index += 1) {
-    const pixelIndex = index * 4
-    const average =
-      0.299 * data[pixelIndex] +
-      0.587 * data[pixelIndex + 1] +
-      0.114 * data[pixelIndex + 2]
-    const adjusted = Math.max(
-      0,
-      Math.min(255, factor * (average - 128) + 128 + brightness),
-    )
-    grayscale[index] = adjusted
-  }
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const index = y * width + x
-      const oldValue = grayscale[index]
-      const newValue = oldValue < 128 ? 0 : 255
-      const error = oldValue - newValue
-      grayscale[index] = newValue
-
-      if (x + 1 < width) grayscale[index + 1] += (error * 7) / 16
-      if (y + 1 < height) {
-        if (x > 0) grayscale[index + width - 1] += (error * 3) / 16
-        grayscale[index + width] += (error * 5) / 16
-        if (x + 1 < width) grayscale[index + width + 1] += error / 16
-      }
-    }
-  }
-
-  for (let index = 0; index < grayscale.length; index += 1) {
-    const pixelIndex = index * 4
-    const value = grayscale[index] < 128 ? 0 : 255
-    data[pixelIndex] = value
-    data[pixelIndex + 1] = value
-    data[pixelIndex + 2] = value
-    data[pixelIndex + 3] = 255
+export async function loadPhoto(file) {
+  if (!file) return null;
+  if (file.size > 25 * 1024 * 1024) throw new Error('Choose a photo smaller than 25 MB.');
+  const url = URL.createObjectURL(file);
+  try {
+    // Modern browser image decoding applies embedded orientation. Keep this
+    // decoded original through editing instead of repeatedly encoding PNGs.
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    if (!image.naturalWidth || !image.naturalHeight) throw new Error('Empty image.');
+    return { image, width: image.naturalWidth, height: image.naturalHeight, mirrored: false, kind: 'upload' };
+  } catch {
+    throw new Error('This photo could not be opened. Try a JPEG, PNG, or another image your browser supports.');
+  } finally {
+    URL.revokeObjectURL(url);
   }
 }
 
-export async function processPhoto(
-  source,
-  { brightness = 0, contrast = 0, photoSize = PRINTER_WIDTH } = {},
-) {
-  const image = await loadImage(source)
-  const photoCanvas = createProcessedPhotoCanvas(image, {
-    brightness,
-    contrast,
-    photoSize,
-  })
-
-  const outputCanvas = document.createElement('canvas')
-  outputCanvas.width = photoSize + PHOTO_MARGIN * 2
-  outputCanvas.height = photoSize + PHOTO_MARGIN + PHOTO_BOTTOM_MARGIN
-  const outputContext = outputCanvas.getContext('2d')
-  outputContext.fillStyle = 'white'
-  outputContext.fillRect(0, 0, outputCanvas.width, outputCanvas.height)
-  outputContext.drawImage(photoCanvas, PHOTO_MARGIN, PHOTO_MARGIN)
-
-  return outputCanvas.toDataURL('image/png')
-}
-
-function createProcessedPhotoCanvas(
-  image,
-  { brightness = 0, contrast = 0, photoSize = PRINTER_WIDTH },
-) {
-  const photoCanvas = document.createElement('canvas')
-  photoCanvas.width = photoSize
-  photoCanvas.height = photoSize
-  const photoContext = photoCanvas.getContext('2d')
-  photoContext.drawImage(image, 0, 0, photoSize, photoSize)
-
-  const imageData = photoContext.getImageData(0, 0, photoSize, photoSize)
-  applyDither(imageData, brightness, contrast)
-  photoContext.putImageData(imageData, 0, 0)
-
-  return photoCanvas
-}
-
-export async function processSquarePhoto(
-  source,
-  { brightness = 0, contrast = 0, photoSize = PRINTER_WIDTH } = {},
-) {
-  const image = await loadImage(source)
-  const photoCanvas = createProcessedPhotoCanvas(image, {
-    brightness,
-    contrast,
-    photoSize,
-  })
-  return photoCanvas.toDataURL('image/png')
+export function createSamplePhoto() {
+  const image = document.createElement('canvas');
+  image.width = image.height = PHOTO_SIZE;
+  const ctx = image.getContext('2d');
+  const sky = ctx.createLinearGradient(0, 0, 0, PHOTO_SIZE);
+  sky.addColorStop(0, '#8d8d8d');
+  sky.addColorStop(1, '#efefef');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, PHOTO_SIZE, PHOTO_SIZE);
+  ctx.fillStyle = '#fafafa';
+  ctx.beginPath(); ctx.arc(408, 150, 61, 0, Math.PI * 2); ctx.fill();
+  for (const [color, points] of [
+    ['#a0a0a0', [[0, 360], [120, 176], [260, 350], [362, 235], [576, 390]]],
+    ['#606060', [[0, 430], [206, 272], [370, 450], [490, 315], [576, 410]]],
+    ['#2c2c2c', [[0, 475], [140, 405], [300, 493], [460, 439], [576, 473]]],
+  ]) {
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.moveTo(0, PHOTO_SIZE);
+    for (const [x, y] of points) ctx.lineTo(x, y);
+    ctx.lineTo(PHOTO_SIZE, PHOTO_SIZE); ctx.closePath(); ctx.fill();
+  }
+  return processPhoto({ image, width: PHOTO_SIZE, height: PHOTO_SIZE }, { zoom: 1, x: 0, y: 0 });
 }

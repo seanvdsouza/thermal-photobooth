@@ -1,0 +1,15 @@
+{
+  "host": "192.168.2.120",
+  "port": 9100,
+  "timeoutMs": 5000,
+  "printableWidthDots": 576,
+  "topMarginDots": 32,
+  "bottomMarginDots": 32,
+  "rotate180": true,
+  "feedDots": 0,
+  "cut": "feed-partial",
+  "bandHeight": 0,
+  "previewSideMarginDots": 32,
+  "previewTopMarginDots": 32,
+  "previewBottomMarginDots": 128
+}

@@ -1,137 +1,99 @@
-# Thermal Photobooth — Implementation Plan for Codex
+# Implementation plan
 
-## Project goal
-Build a responsive photobooth website that runs on phones and computers. Users can take a picture using their device camera **or** choose an existing image from their gallery/files, preview a black-and-white thermal-receipt aesthetic, edit it, and download a print-ready PNG. **Phase 1 must work without a printer, backend, or paid services.** Later, connect an Xprinter XP-80T receipt printer through a MacBook-hosted Node.js print bridge.
+## Status: Phase 3 complete — awaiting confirmation for Phase 4
 
-## Stack
-- **React + Vite** (JavaScript/JSX, no TypeScript unless requested)
-- Plain CSS (responsive, mobile-first)
-- Browser **MediaDevices / getUserMedia** for cameras
-- **Canvas API** for cropping, mirroring, grayscale, brightness/contrast, dithering, layout, and PNG export
-- No backend, database, accounts, cloud storage, or printer dependency in Phase 1
-- Keep processing utilities separate from React UI components
+The user approved Phase 3 printing on 2026-10-27. The backend is integrated, and the user confirmed that a browser-submitted test receipt printed and cut correctly with the approved margin orientation. Do not start Phase 4 guest access/HTTPS until confirmed.
 
-## Phase 1 — Required functionality
+## Verified hardware and approved configuration
 
-### A. Choose a photo source
-- Landing screen with **Take Photo** and **Upload Photo**.
-- Works on mobile and desktop.
-- Allow switching sources and returning to the landing screen.
+- XPrinter XP-80T on 80 mm paper, reached from the MacBook over LAN at 192.168.2.120:9100.
+- Node v24.12.0 and npm 11.6.2 available. Phase 1 uses Node built-ins only.
+- Readable text confirmed by user.
+- `GS v 0` raster supported; 576-dot checkerboard printed with both edge rules visible.
+- Photo measured approximately 72 × 72 mm, consistent with 8 dots/mm.
+- `GS V 66 0` feed-and-partial-cut command works; exact mechanical cut shape was not separately measured.
+- Approved layout: rotate photo 180°, 32 leading blank rows, 576 × 576 photo, 32 trailing blank rows. Raster 576 × 640, 72 bytes/row, MSB first, 1 = black.
+- No extra explicit feed. Turn the finished receipt upright so the larger mechanical leading margin becomes the visual bottom.
+- Intended visual margins roughly 4 mm above and 16–17 mm below; user approved appearance without supplying exact final measurements. Side margins follow the printer's natural unprintable area.
+- Saved in printer/config.json, including rotate180=true and cut=feed-partial.
 
-### B. Camera capture
-- Ask for camera permission only when the user chooses Take Photo.
-- Show a **live thermal-effect preview**, framed as a **square (1:1)** photograph.
-- Support front/rear camera switching where supported; show helpful fallbacks if unavailable.
-- **Front camera: mirror both the live preview and captured/printed result.**
-- **Rear camera: do not mirror.**
-- Maintain consistent crop/orientation between preview and capture; use the same image-processing pipeline.
-- Capture from the original camera frame at suitable resolution, not from a CSS-scaled screenshot.
-- Stop camera tracks when leaving camera mode/unmounting, and handle permission denial or unavailable hardware gracefully.
+## Calibration findings
 
-### C. Gallery upload
-- Use a file input accepting common image types (`accept="image/*"`).
-- Display uploaded images in an interactive **square crop** with **zoom and reposition** (touch and mouse; provide accessible controls where practical).
-- Show the thermal effect as the crop is adjusted.
-- **Do not automatically mirror uploaded images.**
-- Handle unsupported/corrupt files and large images gracefully; respect image orientation.
+Initial upright-in-feed print with 32 leading and 128 trailing blank rows produced approximately 16 mm top and bottom. Removing leading blank rows left approximately 13 mm at the top. Direct cutting initially appeared to reduce it to 10 mm but repeat testing returned 13 mm; it also reduced the bottom to 3 mm with 128 trailing rows. Increasing trailing rows to 232 restored 16 mm below, without solving the top.
 
-### D. Shared editing screen
-- After camera capture **or** upload, enter the same photo editor.
-- Show a near-real-time preview of the **final dithered square image in its Polaroid-style paper layout**.
-- Controls:
-  - **Brightness slider**, centered at a neutral default.
-  - **Contrast slider**, centered at a neutral default.
-  - **Reset** to defaults.
-  - **Retake** (camera) or **Choose Another** (upload).
-  - **Download PNG**.
-- Keep the source image in memory and **reprocess from the original on each change**; never repeatedly modify already-dithered pixels.
-- Use sensible slider ranges and update previews responsively; debounce or schedule work if needed for performance.
-- Use **Floyd–Steinberg dithering** as the initial fixed algorithm. **Do not add a “dithering strength” slider in Phase 1.** Alternate dithering modes can come later.
+The working solution came from thermal-photobooth copy/src/utils/escPosRaster.js: rotate the photo 180° and use 32 blank rows on each end, then feed and cut. This moves the unavoidable leading margin below the upright photo rather than attempting unverified reverse feeding. The user approved this test. Earlier minimum-top conclusions apply only to the unrotated feed orientation.
 
-### E. Image pipeline and export
-- Processing order: **source → square crop/orientation/mirror → resize to print width → brightness/contrast → grayscale → Floyd–Steinberg dithering → compose Polaroid-style layout → PNG**.
-- Final bitmap should be **pure black/white** (not grayscale) to approximate monochrome thermal output.
-- Use a **configurable printer-width constant**; initially default to **576 pixels** as a provisional value, to verify against the actual XP-80T model before hardware printing.
-- Square photograph area: 1:1. Surround with white margins, with a **larger bottom margin** for a Polaroid-like appearance. Keep these layout dimensions configurable.
-- Export a PNG at its **native output dimensions**, with no resizing after dithering.
-- The preview should closely match the exported image (allowing for actual paper/printer differences).
-- No photo upload to a server in Phase 1; all photos stay in the browser unless downloaded.
+## Completed implementation
 
-### F. UX and reliability
-- Clear flow: **Choose source → Capture / Select & crop → Edit / Review → Download**.
-- Responsive touch-friendly interface, including small phone screens and desktop.
-- Accessible buttons, slider labels, visible focus styles, meaningful error messages, and loading states where needed.
-- Avoid unnecessary dependencies; prefer standard browser APIs.
-- Test camera, upload, editing, and PNG download independently.
-- Do not add a fake printer-success message. Optionally show a disabled **Print (coming later)** button, but download is the functional Phase 1 output.
+- Standalone text, probe, pattern, Polaroid, and cutter diagnostics.
+- Separate TCP transport, ESC/POS encoding, dithering, and test image generation.
+- Bounded TCP submission with no automatic retries; submission never claims confirmed physical completion.
+- Dry-run ESC/POS bytes and PBM preview of printable pixels.
+- Six tests cover known bit packing, raster header, white margins, band continuity, feed/cut commands, dithering, and pixel-accurate 180° rotation.
+- Four existing copy-project encoder tests also passed.
+- README documents setup, approved layout, commands, calibration and troubleshooting.
 
-## Suggested structure
-```text
-photobooth/
-├── public/
-├── src/
-│   ├── components/
-│   │   ├── SourcePicker.jsx
-│   │   ├── Camera.jsx
-│   │   ├── PhotoUpload.jsx
-│   │   ├── PhotoEditor.jsx
-│   │   ├── PhotoPreview.jsx
-│   │   └── PhotoControls.jsx
-│   ├── utils/
-│   │   ├── imageProcessing.js
-│   │   ├── imageCrop.js
-│   │   └── imageExport.js
-│   ├── App.jsx
-│   ├── App.css
-│   └── main.jsx
-├── index.html
-├── package.json
-└── vite.config.js
-```
-Adjust component boundaries if a simpler organization is clearer.
+## Scope and remaining limits
 
-## Development and testing
-Start with:
-```bash
-npm create vite@latest photobooth -- --template react
-cd photobooth
-npm install
-npm run dev
-```
-- Desktop camera access works on `localhost` in supported browsers.
-- For camera testing on a phone connecting to the MacBook over LAN, use **HTTPS with a trusted local development certificate** (e.g., mkcert) and configure Vite to listen on the LAN. A plain `http://<MacBook-LAN-IP>` origin is generally **not** a secure context for mobile camera access.
-- Confirm actual device/browser camera and file-input behavior; front/rear availability differs by device.
+USB is replaced with Ethernet throughout the project. No packages installed or printer/system settings changed. No full-cut or banded-image physical verification, printer status polling, or reverse-feed commands. Final margin precision and first-print versus continuous-print behavior can be checked during integration if needed; no more test prints are required for the approved Phase 1 result.
 
-## Phase 2 — Printer integration (do not implement yet)
-- Add **Node.js + Express** on the MacBook to serve the frontend and accept print requests.
-- Convert the finished monochrome bitmap to **ESC/POS** raster commands and send to the **Xprinter XP-80T**.
-- Prefer Ethernet/raw TCP if supported by the purchased variant; **USB is also acceptable** once a compatible macOS connection method is verified.
-- Add a simple **sequential print queue**, input validation, size limits, and useful printer error feedback.
-- Verify printer-specific **printable dot width, raster commands, port/interface, buffering, and paper/feed behavior** with the actual device; do not assume 576 dots or TCP port 9100 is guaranteed.
-- The browser should send **only the final processed image** to the print bridge, not camera streams or original full-resolution photos.
-- Keep the image-processing code and React screens independent of printer transport.
+Existing tracked frontend files were already deleted when work began; they were not restored. The initially supplied thermal-photobooth-old directory was empty. The later thermal-photobooth copy folder contains a React app and LAN print helper and was inspected without modification. Treat it as reference for later phases, not as authorization to skip phase boundaries.
 
-## Later possibilities (out of scope now)
-- Public HTTPS access via a tunnel (e.g., Cloudflare Tunnel) and QR-code entry for events.
-- Additional dithering algorithms, optional presets, and photo-download enhancements.
-- Replacing the MacBook bridge with a Raspberry Pi or other always-on device.
+## Phase 2 implementation
 
-## Codex instructions
-1. **Implement Phase 1 only.** Do not implement the Node/Express backend or printer code yet.
-2. Build the app incrementally, keeping it runnable at each stage.
-3. Prioritize correct camera behavior, gallery cropping, consistent processing, and downloadable PNGs over visual flourishes.
-4. Keep all photo-processing logic in reusable utility functions and keep printer-specific assumptions configurable.
-5. Provide clear run instructions in `README.md`, including the HTTPS caveat for testing on phones.
-6. At completion, explain what was implemented, how to run it, and any known browser/device limitations.
+- [x] React + Vite using the existing reference project's dependency versions, installed from local npm cache. No new runtime libraries beyond React/React DOM.
+- [x] Welcome with camera and upload; upload goes straight to the common editor.
+- [x] Camera lifecycle, live square preview, capture of the original frame, facing switch and mirror metadata, permission/error messages and upload fallback.
+- [x] One original source retained in memory, browser orientation handling, 25 MB file limit, corrupt/unsupported-image errors, temporary file URLs revoked.
+- [x] Shared editor with drag/nudge crop, zoom, brightness, contrast, reset, retake/replace.
+- [x] One 576 × 576 monochrome pipeline shared by editor and result preview. Shared pure dithering used by Node diagnostics and browser, with no Node/Buffer dependencies in the browser.
+- [x] Upright physical receipt preview uses configured paper margins, separate from printer rotation.
+- [x] Demo print result explicitly states that no print job was sent; no backend or print requests.
+- [x] Responsive layouts, labelled sliders, keyboard crop buttons, focus handling, busy/error states.
+- [x] Browser checks at 390-pixel phone width and 1280-pixel desktop width: upload, zoom, brightness, contrast, reposition buttons, Reset, corrupt replacement preserving current edit, demo result and return navigation.
+- [x] Production build, ESLint, all ten crop/raster/dither tests pass.
+- [ ] Real iPhone Safari / Android Chrome and physical front/rear camera checks. Camera composition and mirroring transforms have automated geometry coverage, but physical device behavior remains unverified.
 
-## Phase 1 acceptance checklist
-- [ ] App runs with `npm install` and `npm run dev`.
-- [ ] Mobile/desktop responsive source selection works.
-- [ ] Camera capture works with mirrored front and unmirrored rear images.
-- [ ] Live camera preview displays thermal dithering and a square composition.
-- [ ] Gallery upload supports square crop, zoom, and reposition.
-- [ ] Both sources reach the same editor.
-- [ ] Brightness/contrast sliders and Reset work without cumulative degradation.
-- [ ] Preview includes white Polaroid margins and larger bottom margin.
-- [ ] Downloaded PNG is monochrome, square-photo-plus-frame, and matches preview.
-- [ ] No printer or backend is required.
+At the user’s request, the live camera preview now uses the shared grayscale/dithering function at 576 × 576, throttled to 8 fps (updated from the initial 256-dot/10-fps live effect to match print detail). Capture starts an accessible 3 → 2 → 1 countdown and saves the original frame after three seconds. Pending capture is cancelled on unmount or upload selection; duplicate presses and camera switching are disabled during countdown. A synthetic browser camera test verified live dithering, one capture after 3003 ms, and zero captures after leaving during countdown. Physical phone checks remain pending. No download/share controls or additional crop screen were carried over. The copy project remains unchanged. Approved Phase 1 printing settings remain intact; approximate upright preview margins were added to the same config.
+
+## Later phases — not started
+
+4. Guest access: local network / HTTPS, investigate Cloudflare Tunnel, QR code, event access controls and rate limits, real iPhone/Android testing.
+
+## Dithering quality investigation
+
+User reported rough texture in both live and captured images, worse after capture. Reviewed the actual copy-project pipeline: same Floyd–Steinberg kernel, float64 error buffer versus current float32, contrast then brightness versus current brightness then contrast. A neutral 576 × 576 grayscale gradient produced identical old/current bits. This is limited evidence, not proof of equivalence for all photographs.
+
+Changed live preview to print resolution (576 dots) at 8 fps so it no longer displays the different dot scale of a 256-dot source. Full original capture remains preserved. Added a separate dev-only comparison at experiments/dithering.html: grayscale, actual legacy code, current, alternating-row FS, Atkinson, and Stucki, with one shared photo/crop/resolution and neutral-adjustment baseline. This investigation initially left the main app on Floyd–Steinberg; it now offers selectable looks as described below. Atkinson and Stucki kernels follow Tanner Helland's published algorithm reference. Browser checks covered generated-image upload, resolution switching, brightness, and reset. All seventeen automated tests, build and lint passed. Portrait-based choice and physical alternative print tests remain pending; do not claim a chosen quality improvement before those comparisons.
+
+## Portra-inspired monochrome experiment
+
+User preferred Atkinson and requested a black-and-white Portra/Lightroom-inspired option. Added a separate candidate beside standard Atkinson: custom RGB monochrome mix (0.38 R / 0.50 G / 0.12 B), smooth lifted-shadow/midtone curve (12 + 238 × normalized luminance^0.9), existing user adjustments, then Atkinson. No imported preset or exact film-emulation claim; no added random grain. This began as a comparison-only candidate and is now selectable in the main app. Three additional tests verify curve monotonicity/endpoints, channel mix/original preservation, and binary output. All twenty tests, lint and build passed. Portrait comparison and physical print preference remain for the user to evaluate.
+
+## Camera dropdown and Floyd–Steinberg controls
+
+At the user's request, promoted the candidate algorithms and Portra tone function to shared modules, with comparison re-exports retaining compatibility. Added one shared DitherControls component to camera and editor: Atkinson (default, based on user preference), Portra-inspired B&W/Atkinson, Floyd–Steinberg, and Stucki. Alternating-row Floyd–Steinberg is a scan-direction toggle rather than a separate duplicate dropdown option.
+
+Floyd–Steinberg supports diffusion strength 0–100%, threshold 64–192, and alternating-row direction. Standard reset preserves Floyd–Steinberg and restores 100%/128/left-to-right. Existing printer diagnostic default output is unchanged, protected by a pre-change raster hash regression test. Look state is owned by App and shared across camera, capture/editor, upload and retake; a camera processing ref avoids reopening streams when settings change. Controls are locked during countdown. Editor's global reset returns to Atkinson with standard tuning defaults.
+
+Live and final processing now share pure shared/photo-look.js; each emits 1-bit black/white photo data. New tests cover unmodified default raster output, zero-diffusion threshold semantics, parameter validation and texture changes, and per-frame live/capture output equivalence for all selectable looks. All twenty-four tests, lint and production build passed. Browser synthetic-camera checks verified no stream restart on setting changes, controls/reset, disabled tuning through countdown, capture at 3003 ms retaining custom FS settings, and retention on retake. Narrow viewport controls were inspected. No real print job or Phase 3 work was performed.
+
+## Phase 3 — completed
+
+- [x] Express backend with local-only binding, host/origin restrictions, exact dimensions/payload validation and size limit.
+- [x] Browser packs final processed upright pixels (576 × 576 / 41,472 bytes); no original photo or client-generated printer commands sent.
+- [x] Backend uses approved rotation/32-row leading and trailing whitespace/feed-and-partial-cut. No re-dithering; selectable photo look is preserved in exact submitted bits.
+- [x] Serial queue capped at five pending/active jobs; UUID idempotency, payload-conflict rejection and bounded recent metadata.
+- [x] Image buffers cleared after send/failure. No disk photo storage or automatic retries. Failed transmissions also fail waiting jobs to avoid continuing an uncertain raster stream.
+- [x] UI locks duplicate submits, polls status, distinguishes submission from physical completion, reuses the same ID after unknown outcomes, and allows explicit new attempts after known failures.
+- [x] Same-origin /api calls via Vite proxy; built frontend can be served by the backend.
+- [x] One-command development startup with Node child processes; verified alternate-port startup/proxy health and cleanup.
+- [x] 31 automated checks, ESLint and production build passed. Network tests needed permission to bind ephemeral localhost ports; no physical printer used in automated tests.
+- [x] Browser end-to-end synthetic Atkinson capture → real Print photo → API → queue → LAN TCP → submitted. User confirmed physical receipt printed and cut correctly, with the thicker visual bottom margin.
+- [x] Updated run instructions, API contract, retry limits and troubleshooting notes.
+
+Live local frontend remains at 127.0.0.1:5173 and print service at 127.0.0.1:4174, targeting 192.168.2.120:9100. The currently running frontend and backend were started separately during integration; future npm run dev starts both. On fresh startup ensure no earlier instances occupy these ports. Phase 4 (phone guest HTTPS/public safeguards) is still not started.
+
+## Working release checkpoint — 2026-10-30
+
+Prepared v0.1.0 as the first working LAN-printing release. Preserved the exact two legacy comparison dependencies under experiments/legacy and updated the comparison import so a clean checkout is self-contained. The separate nested thermal-photobooth copy Git repository remains local and ignored. Production behavior is unchanged; version and lockfile identify the checkpoint.
