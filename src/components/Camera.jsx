@@ -1,24 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { drawCrop } from '../utils/imageCrop.js';
 import { applyThermalEffect, PHOTO_SIZE } from '../utils/imageProcessing.js';
-import DitherControls from './DitherControls.jsx';
+import { DEFAULT_LOOK } from '../../shared/photo-look.js';
 
 const PREVIEW_SIZE = PHOTO_SIZE;
 const PREVIEW_INTERVAL_MS = 125; // Match print detail, limit processing to 8 fps.
 
-export default function Camera({ look, onLookChange, onCapture, onBack, onUpload }) {
+export default function Camera({ onCapture, onUpload }) {
   const video = useRef(null);
   const preview = useRef(null);
   const streamRef = useRef(null);
   const mirroredRef = useRef(true);
   const countdownTimer = useRef(null);
-  const lookRef = useRef(look);
   const [facing, setFacing] = useState('user');
   const [status, setStatus] = useState({ ready: false, error: '' });
   const [countdown, setCountdown] = useState(0);
 
-  // Changing a look updates processing without reopening the camera stream.
-  useEffect(() => { lookRef.current = look; }, [look]);
   useEffect(() => () => clearInterval(countdownTimer.current), []);
 
   useEffect(() => {
@@ -44,7 +41,7 @@ export default function Camera({ look, onLookChange, onCapture, onBack, onUpload
             lastDraw = timestamp;
             drawCrop(ctx, { image: element, width: element.videoWidth, height: element.videoHeight, mirrored: mirroredRef.current }, { zoom: 1 }, PREVIEW_SIZE);
             const image = ctx.getImageData(0, 0, PREVIEW_SIZE, PREVIEW_SIZE);
-            applyThermalEffect(image, 0, 0, lookRef.current);
+            applyThermalEffect(image, 0, 0, DEFAULT_LOOK);
             ctx.putImageData(image, 0, 0);
           }
           frame = requestAnimationFrame(draw);
@@ -81,7 +78,7 @@ export default function Camera({ look, onLookChange, onCapture, onBack, onUpload
     image.width = Math.round(element.videoWidth * scale);
     image.height = Math.round(element.videoHeight * scale);
     image.getContext('2d').drawImage(element, 0, 0, image.width, image.height);
-    onCapture({ image, width: image.width, height: image.height, mirrored: mirroredRef.current, kind: 'camera', look: { ...lookRef.current } });
+    onCapture({ image, width: image.width, height: image.height, mirrored: mirroredRef.current, kind: 'camera', look: { ...DEFAULT_LOOK } });
   }
 
   function startCountdown() {
@@ -106,26 +103,28 @@ export default function Camera({ look, onLookChange, onCapture, onBack, onUpload
   }
 
   return (
-    <section className="camera-section">
-      <button className="text-button" onClick={onBack}>← Back</button>
-      <p className="eyebrow">01 / Make a moment</p>
-      <h1>Find your good side.</h1>
-      <p className="muted">Find your frame. You’ll have three seconds to strike a pose.</p>
+    <section className="camera-section booth-scene" aria-label="Take a photo">
       <div className="camera-workspace">
-      <div className="camera-view">
-        <video ref={video} autoPlay playsInline muted hidden />
-        <canvas ref={preview} width={PREVIEW_SIZE} height={PREVIEW_SIZE} aria-label="Live dithered black-and-white camera preview" />
-        {!status.ready && <div className="camera-message" role="status">{status.error || 'Opening your camera…'}</div>}
-        {countdown > 0 && <div className="camera-countdown" role="status" aria-live="assertive" aria-atomic="true"><span aria-label={`Capturing in ${countdown} ${countdown === 1 ? 'second' : 'seconds'}`}>{countdown}</span></div>}
+        <div className="booth-stage">
+          <div className="booth-mirror">
+            <div className="booth-lights" aria-hidden="true">{Array.from({ length: 7 }, (_, i) => <span key={i} />)}</div>
+            <div className="camera-view">
+              <video ref={video} autoPlay playsInline muted hidden />
+              <canvas ref={preview} width={PREVIEW_SIZE} height={PREVIEW_SIZE} aria-label="Live dithered black-and-white camera preview" />
+              {!status.ready && <div className="camera-message" role="status">{status.error || 'Opening your camera…'}</div>}
+              {countdown > 0 && <div className="camera-countdown" role="status" aria-live="assertive" aria-atomic="true"><span aria-label={`Capturing in ${countdown} ${countdown === 1 ? 'second' : 'seconds'}`}>{countdown}</span></div>}
+            </div>
+          </div>
+          {status.error && <p role="alert" className="error">{status.error}</p>}
+          <div className="camera-actions">
+            <button className="secondary booth-aux" disabled={countdown > 0} onClick={() => { setStatus({ ready: false, error: '' }); setFacing(value => value === 'user' ? 'environment' : 'user'); }}>SWITCH CAMERA</button>
+            <div className="booth-shutter-control">
+              <button className="primary booth-shutter" aria-label={countdown > 0 ? 'Get ready…' : 'Capture photo'} disabled={!status.ready || countdown > 0} onClick={startCountdown}><span className="booth-shutter-icon" aria-hidden="true" /></button>
+            </div>
+            <button className="secondary booth-aux" onClick={() => { cancelCountdown(); onUpload(); }}>UPLOAD PHOTO</button>
+          </div>
+        </div>
       </div>
-      <DitherControls look={look} onChange={onLookChange} disabled={countdown > 0} />
-      </div>
-      {status.error && <p role="alert" className="error">{status.error}</p>}
-      <div className="camera-actions">
-        <button className="secondary" disabled={countdown > 0} onClick={() => { setStatus({ ready: false, error: '' }); setFacing(value => value === 'user' ? 'environment' : 'user'); }}>Switch camera</button>
-        <button className="primary" disabled={!status.ready || countdown > 0} onClick={startCountdown}>{countdown > 0 ? 'Get ready…' : 'Capture photo'} <span aria-hidden="true">◎</span></button>
-      </div>
-      <button className="text-button" onClick={() => { cancelCountdown(); onUpload(); }}>Use a photo from your device instead</button>
     </section>
   );
 }

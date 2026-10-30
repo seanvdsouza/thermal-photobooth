@@ -3,9 +3,8 @@ import { DEFAULT_LOOK, LOOK_OPTIONS } from '../../shared/photo-look.js';
 export default function DitherControls({ look, onChange, disabled = false }) {
   function update(patch) { onChange({ ...look, ...patch }); }
   return (
-    <fieldset className="dither-controls" disabled={disabled}>
-      <legend>Photo look</legend>
-      <label className="look-label" htmlFor="dithering-method">Dithering</label>
+    <fieldset className="dither-controls" aria-label="Effect" disabled={disabled}>
+      <label className="look-label" htmlFor="dithering-method">Effect</label>
       <select id="dithering-method" value={look.method} onChange={event => update({ method: event.target.value })}>
         {LOOK_OPTIONS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
       </select>

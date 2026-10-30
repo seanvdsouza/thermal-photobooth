@@ -1,99 +1,187 @@
-# Implementation plan
+# Thermal Receipt Photobooth
 
-## Status: Phase 3 complete — awaiting confirmation for Phase 4
+Mobile browser photobooth for an XPrinter XP-80T on 80 mm receipt paper. The MacBook will process print jobs and send ESC/POS bytes over **Ethernet/LAN**, replacing the USB connection in the supplied project prompt.
 
-The user approved Phase 3 printing on 2026-10-27. The backend is integrated, and the user confirmed that a browser-submitted test receipt printed and cut correctly with the approved margin orientation. Do not start Phase 4 guest access/HTTPS until confirmed.
+**Phase 3 complete**: the React/Vite editor prints through a local Express service to the LAN printer. The user confirmed the end-to-end Atkinson test printed and cut correctly with the approved layout. The reference app in `thermal-photobooth copy` remains unchanged. HTTPS/mobile guest access is Phase 4 and has not started.
 
-## Verified hardware and approved configuration
+## Run the photobooth
 
-- XPrinter XP-80T on 80 mm paper, reached from the MacBook over LAN at 192.168.2.120:9100.
-- Node v24.12.0 and npm 11.6.2 available. Phase 1 uses Node built-ins only.
-- Readable text confirmed by user.
-- `GS v 0` raster supported; 576-dot checkerboard printed with both edge rules visible.
-- Photo measured approximately 72 × 72 mm, consistent with 8 dots/mm.
-- `GS V 66 0` feed-and-partial-cut command works; exact mechanical cut shape was not separately measured.
-- Approved layout: rotate photo 180°, 32 leading blank rows, 576 × 576 photo, 32 trailing blank rows. Raster 576 × 640, 72 bytes/row, MSB first, 1 = black.
-- No extra explicit feed. Turn the finished receipt upright so the larger mechanical leading margin becomes the visual bottom.
-- Intended visual margins roughly 4 mm above and 16–17 mm below; user approved appearance without supplying exact final measurements. Side margins follow the printer's natural unprintable area.
-- Saved in printer/config.json, including rotate180=true and cut=feed-partial.
+```sh
+npm install
+npm run dev
+```
 
-## Calibration findings
+One command starts both services: Vite at http://127.0.0.1:5173 and the local print backend at http://127.0.0.1:4174. Ctrl+C stops both. Use the project root, not the copy folder. React/React DOM provide the interface; Vite provides development and production builds; Express supplies the local print API. ESLint and its React plugins are development checks. There are no editing libraries, UI frameworks, router, remote fonts, or process-manager packages. Stop any older Vite/print-service processes before starting a fresh combined session.
 
-Initial upright-in-feed print with 32 leading and 128 trailing blank rows produced approximately 16 mm top and bottom. Removing leading blank rows left approximately 13 mm at the top. Direct cutting initially appeared to reduce it to 10 mm but repeat testing returned 13 mm; it also reduced the bottom to 3 mm with 128 trailing rows. Increasing trailing rows to 232 restored 16 mm below, without solving the top.
+```sh
+npm run build
+npm run lint
+npm test
+```
 
-The working solution came from thermal-photobooth copy/src/utils/escPosRaster.js: rotate the photo 180° and use 32 blank rows on each end, then feed and cut. This moves the unavoidable leading margin below the upright photo rather than attempting unverified reverse feeding. The user approved this test. Earlier minimum-top conclusions apply only to the unrotated feed orientation.
+The flow is **Take or upload → shared editor → Print photo → print status**. Upload opens the device file picker directly. The editor combines crop, zoom, brightness, contrast, Reset, and an upright receipt preview. Drag the image or use the arrow buttons to reposition it. Retake/Choose another replaces the source; cancelling the file picker keeps the current edit. Unsupported or corrupt files show an error, and files larger than 25 MB are rejected.
 
-## Completed implementation
+The camera starts only after Take a photo. It uses a live square preview using Atkinson at 576 × 576 and up to 8 frames per second, with front-camera mirroring and rear-camera output unmirrored when the device reports its facing direction. Capture starts a visible three-second countdown (3 → 2 → 1), then saves the original camera frame for the same full-quality thermal editor used by uploads. The live preview uses the same processing resolution as the final photo to keep dot texture consistent; capture still saves the original camera frame for editing. Capture and camera switching are disabled during the countdown; leaving the camera cancels it. The live preview and final editor share the same pixel-processing function. Camera tracks stop when leaving the camera or switching it. Browser camera access generally requires localhost or trusted HTTPS. HTTP access from a phone to a MacBook's LAN address is insufficient for camera testing; guest HTTPS is Phase 4. Actual iPhone/Safari, Android/Chrome, front/rear switching, and camera permission behavior still need testing on those devices.
 
-- Standalone text, probe, pattern, Polaroid, and cutter diagnostics.
-- Separate TCP transport, ESC/POS encoding, dithering, and test image generation.
-- Bounded TCP submission with no automatic retries; submission never claims confirmed physical completion.
-- Dry-run ESC/POS bytes and PBM preview of printable pixels.
-- Six tests cover known bit packing, raster header, white margins, band continuity, feed/cut commands, dithering, and pixel-accurate 180° rotation.
-- Four existing copy-project encoder tests also passed.
-- README documents setup, approved layout, commands, calibration and troubleshooting.
+Photo editing and dithering happen in browser memory. Only the final packed monochrome square is sent to the MacBook when Print photo is pressed; the original source never goes to the backend. The decoded original is preserved; changes run through square crop/mirroring, 576-dot resize, monochrome tone conversion, brightness, contrast, and the selected dithering method. A short debounce avoids processing every pointer event. One final monochrome result supplies the editor and demo result. There are no preview-only photo filters or repeated PNG encode/decode cycles. Reset restores the crop and all adjustments.
 
-## Scope and remaining limits
+**Print photo sends a real job.** The button is locked immediately on submission. The status page shows sending, queued, submitted, or an error. Submitted means TCP data was sent; physical paper output is not confirmed automatically. A lost response can be retried with the same job ID without resending a remembered job. A printer error is never automatically retried. Check the printer/paper before an explicit retry; a failed connection may have transmitted part of the image. Back to editing after submission allows deliberate further adjustments and another print. Leaving an accepted job's page does not cancel it.
 
-USB is replaced with Ethernet throughout the project. No packages installed or printer/system settings changed. No full-cut or banded-image physical verification, printer status polling, or reverse-feed commands. Final margin precision and first-print versus continuous-print behavior can be checked during integration if needed; no more test prints are required for the approved Phase 1 result.
+The backend rotates the already-processed photo once, adds the approved 32 leading and 32 trailing blank raster rows, and feeds/cuts. It never re-dithers, stretches, or decodes a JPEG/PNG. The preview remains upright. Completed/failed image buffers are released; no photos are written to disk. Browser state resets on refresh or starting another photo.
 
-Existing tracked frontend files were already deleted when work began; they were not restored. The initially supplied thermal-photobooth-old directory was empty. The later thermal-photobooth copy folder contains a React app and LAN print helper and was inspected without modification. Treat it as reference for later phases, not as authorization to skip phase boundaries.
+Desktop and 390-pixel phone layouts, file upload, native slider controls, reposition buttons, Reset, corrupt-image handling, and demo navigation were verified in the local browser. Thirty-one automated tests cover raster encoding, dithering, candidate algorithms, rotation, crop boundaries, and mirrored crop drawing. Physical phone/camera checks remain manual; viewport resizing does not prove device compatibility.
 
-## Phase 2 implementation
+The landing page uses a narrow white receipt layout with the supplied Merchant Copy font, the supplied Kassenbon SVG logo, sample image, two photo buttons and a decorative (non-scannable) barcode. Font files are served locally from merchant-copy-font; the original font readme and license information are preserved there. The supplied license describes private, non-commercial use. No external font service or package is used.
 
-- [x] React + Vite using the existing reference project's dependency versions, installed from local npm cache. No new runtime libraries beyond React/React DOM.
-- [x] Welcome with camera and upload; upload goes straight to the common editor.
-- [x] Camera lifecycle, live square preview, capture of the original frame, facing switch and mirror metadata, permission/error messages and upload fallback.
-- [x] One original source retained in memory, browser orientation handling, 25 MB file limit, corrupt/unsupported-image errors, temporary file URLs revoked.
-- [x] Shared editor with drag/nudge crop, zoom, brightness, contrast, reset, retake/replace.
-- [x] One 576 × 576 monochrome pipeline shared by editor and result preview. Shared pure dithering used by Node diagnostics and browser, with no Node/Buffer dependencies in the browser.
-- [x] Upright physical receipt preview uses configured paper margins, separate from printer rotation.
-- [x] Demo print result explicitly states that no print job was sent; no backend or print requests.
-- [x] Responsive layouts, labelled sliders, keyboard crop buttons, focus handling, busy/error states.
-- [x] Browser checks at 390-pixel phone width and 1280-pixel desktop width: upload, zoom, brightness, contrast, reposition buttons, Reset, corrupt replacement preserving current edit, demo result and return navigation.
-- [x] Production build, ESLint, all ten crop/raster/dither tests pass.
-- [ ] Real iPhone Safari / Android Chrome and physical front/rear camera checks. Camera composition and mirroring transforms have automated geometry coverage, but physical device behavior remains unverified.
+The camera screen is styled as a photobooth interior, with burgundy curtain edges, warm static lights around a metal preview frame and a red shutter button. The supplied Merchant Copy font is used across the interface, with its display variant for headings. The shared page header centers the supplied SVG logo, which acts as the Home button; the badge, header divider, back link, subtitle and camera-frame captions have been removed. The camera uses Atkinson with effect controls available in the editor only. The centered cream logo returns home; the camera has no heading or shutter caption, and its auxiliary buttons use uppercase labels. This is CSS/markup only; the photo pixels and print layout are unaffected.
 
-At the user’s request, the live camera preview now uses the shared grayscale/dithering function at 576 × 576, throttled to 8 fps (updated from the initial 256-dot/10-fps live effect to match print detail). Capture starts an accessible 3 → 2 → 1 countdown and saves the original frame after three seconds. Pending capture is cancelled on unmount or upload selection; duplicate presses and camera switching are disabled during countdown. A synthetic browser camera test verified live dithering, one capture after 3003 ms, and zero captures after leaving during countdown. Physical phone checks remain pending. No download/share controls or additional crop screen were carried over. The copy project remains unchanged. Approved Phase 1 printing settings remain intact; approximate upright preview margins were added to the same config.
+The editor and print-status screens share the landing page’s white receipt theme: Merchant Copy text, black controls and square buttons, dashed dividers, and a paper preview. Desktop keeps adjustments beside the preview; mobile stacks them in a narrow receipt-like column. The editor has a larger borderless preview, a single Effect label, uppercase action labels, and an icon-only Save image button beside Print photo. Saving exports the current cropped and processed image as a PNG with white borders matching the receipt preview; print-job processing is unchanged.
 
-## Later phases — not started
+## Frontend structure
 
-4. Guest access: local network / HTTPS, investigate Cloudflare Tunnel, QR code, event access controls and rate limits, real iPhone/Android testing.
+- `src/App.jsx`: source selection, file loading, and navigation using React state.
+- `src/components/Camera.jsx`: camera start/switch/capture/cleanup.
+- `src/components/Editor.jsx`: shared crop and adjustment controls, debounced processing, demo result.
+- `src/components/Receipt.jsx`: upright paper proportions and the processed photo canvas.
+- `src/utils/imageCrop.js`: viewport-independent, bounded crop geometry shared by camera and editor.
+- `src/utils/imageProcessing.js`: source decoding and canvas processing.
+- `src/components/DitherControls.jsx`: editor effect dropdown and Floyd–Steinberg tuning.
+- `shared/photo-look.js`: pure pixel processing and default look (Atkinson).
+- `shared/dither-options.js` and `shared/portra-monochrome.js`: shared algorithms and film-inspired tone conversion.
+- `shared/dither.js`: pure dithering shared by browser and printer diagnostics.
+- `printer/config.json`: verified raw print settings plus approximate upright preview margins. Preview geometry represents physical paper; raw raster dimensions account for transport orientation and the cutter.
 
-## Dithering quality investigation
+## Standalone printer diagnostics
 
-User reported rough texture in both live and captured images, worse after capture. Reviewed the actual copy-project pipeline: same Floyd–Steinberg kernel, float64 error buffer versus current float32, contrast then brightness versus current brightness then contrast. A neutral 576 × 576 grayscale gradient produced identical old/current bits. This is limited evidence, not proof of equivalence for all photographs.
+Node.js 20+ is sufficient for standalone printer diagnostics; the frontend was installed and verified with Node 24.12.0. No packages, printer drivers, USB libraries, or system configuration changes are required for the diagnostic scripts. Keep the MacBook and printer on the same reachable LAN.
 
-Changed live preview to print resolution (576 dots) at 8 fps so it no longer displays the different dot scale of a 256-dot source. Full original capture remains preserved. Added a separate dev-only comparison at experiments/dithering.html: grayscale, actual legacy code, current, alternating-row FS, Atkinson, and Stucki, with one shared photo/crop/resolution and neutral-adjustment baseline. This investigation initially left the main app on Floyd–Steinberg; it now offers selectable looks as described below. Atkinson and Stucki kernels follow Tanner Helland's published algorithm reference. Browser checks covered generated-image upload, resolution switching, brightness, and reset. All seventeen automated tests, build and lint passed. Portrait-based choice and physical alternative print tests remain pending; do not claim a chosen quality improvement before those comparisons.
+The user supplied printer address **192.168.2.120**. TCP **9100**, text printing, a 576-dot raster pattern, and feed-and-partial-cut have worked in physical tests. Configuration lives in `printer/config.json`. Approved settings use a photo rotated 180°, 32 leading and 32 trailing blank rows, and `feed-partial` cutting. Turning the receipt upright places the printer's larger leading margin below the photo. This approach comes from the copy project's working encoder.
 
-## Portra-inspired monochrome experiment
+Run the following from this project directory. Each print command submits once, without retrying.
 
-User preferred Atkinson and requested a black-and-white Portra/Lightroom-inspired option. Added a separate candidate beside standard Atkinson: custom RGB monochrome mix (0.38 R / 0.50 G / 0.12 B), smooth lifted-shadow/midtone curve (12 + 238 × normalized luminance^0.9), existing user adjustments, then Atkinson. No imported preset or exact film-emulation claim; no added random grain. This began as a comparison-only candidate and is now selectable in the main app. Three additional tests verify curve monotonicity/endpoints, channel mix/original preservation, and binary output. All twenty tests, lint and build passed. Portrait comparison and physical print preference remain for the user to evaluate.
+## Commands and workflow
 
-## Camera dropdown and Floyd–Steinberg controls
+1. Connection check: opens and closes a TCP socket without sending printer commands. It verifies reachability, not printer identity or ESC/POS support.
 
-At the user's request, promoted the candidate algorithms and Portra tone function to shared modules, with comparison re-exports retaining compatibility. Added one shared DitherControls component to camera and editor: Atkinson (default, based on user preference), Portra-inspired B&W/Atkinson, Floyd–Steinberg, and Stucki. Alternating-row Floyd–Steinberg is a scan-direction toggle rather than a separate duplicate dropdown option.
+   ```sh
+   node printer/test-printer.mjs probe
+   ```
 
-Floyd–Steinberg supports diffusion strength 0–100%, threshold 64–192, and alternating-row direction. Standard reset preserves Floyd–Steinberg and restores 100%/128/left-to-right. Existing printer diagnostic default output is unchanged, protected by a pre-change raster hash regression test. Look state is owned by App and shared across camera, capture/editor, upload and retake; a camera processing ref avoids reopening streams when settings change. Controls are locked during countdown. Editor's global reset returns to Atkinson with standard tuning defaults.
+2. Text receipt: initializes the printer, centers a short ASCII message, then feeds 160 motion units (nominally 20 mm at 8 units/mm, subject to printer configuration). It does not cut.
 
-Live and final processing now share pure shared/photo-look.js; each emits 1-bit black/white photo data. New tests cover unmodified default raster output, zero-diffusion threshold semantics, parameter validation and texture changes, and per-frame live/capture output equivalence for all selectable looks. All twenty-four tests, lint and production build passed. Browser synthetic-camera checks verified no stream restart on setting changes, controls/reset, disabled tuning through countdown, capture at 3003 ms retaining custom FS settings, and retention on retake. Narrow viewport controls were inspected. No real print job or Phase 3 work was performed.
+   ```sh
+   node printer/test-printer.mjs text --feed 160 --cut none
+   ```
 
-## Phase 3 — completed
+3. Width/polarity test: prints a 576 × 192 checkerboard with edge rules, then feeds to the cutter and requests a partial cut. Both edge rules should appear. Eight-dot checks should measure about 1 mm if density is 8 dots/mm.
 
-- [x] Express backend with local-only binding, host/origin restrictions, exact dimensions/payload validation and size limit.
-- [x] Browser packs final processed upright pixels (576 × 576 / 41,472 bytes); no original photo or client-generated printer commands sent.
-- [x] Backend uses approved rotation/32-row leading and trailing whitespace/feed-and-partial-cut. No re-dithering; selectable photo look is preserved in exact submitted bits.
-- [x] Serial queue capped at five pending/active jobs; UUID idempotency, payload-conflict rejection and bounded recent metadata.
-- [x] Image buffers cleared after send/failure. No disk photo storage or automatic retries. Failed transmissions also fail waiting jobs to avoid continuing an uncertain raster stream.
-- [x] UI locks duplicate submits, polls status, distinguishes submission from physical completion, reuses the same ID after unknown outcomes, and allows explicit new attempts after known failures.
-- [x] Same-origin /api calls via Vite proxy; built frontend can be served by the backend.
-- [x] One-command development startup with Node child processes; verified alternate-port startup/proxy health and cleanup.
-- [x] 31 automated checks, ESLint and production build passed. Network tests needed permission to bind ephemeral localhost ports; no physical printer used in automated tests.
-- [x] Browser end-to-end synthetic Atkinson capture → real Print photo → API → queue → LAN TCP → submitted. User confirmed physical receipt printed and cut correctly, with the thicker visual bottom margin.
-- [x] Updated run instructions, API contract, retry limits and troubleshooting notes.
+   ```sh
+   node printer/test-printer.mjs pattern --cut feed-partial
+   ```
 
-Live local frontend remains at 127.0.0.1:5173 and print service at 127.0.0.1:4174, targeting 192.168.2.120:9100. The currently running frontend and backend were started separately during integration; future npm run dev starts both. On fresh startup ensure no earlier instances occupy these ports. Phase 4 (phone guest HTTPS/public safeguards) is still not started.
+4. Image/layout test: prints a generated shaded sphere and gradient using Floyd–Steinberg dithering. The photo is 576 × 576, rotated 180°, with 32 leading and 32 trailing blank rows. Turn the finished receipt upright so its thicker white margin is below the photo. Calibrated raster: 576 × 640, packed MSB first, 1 = black, 72 bytes/row. It sends a single `GS v 0` raster, then a feed-and-partial-cut command. To reproduce the prompt's original unrotated 576 × 736 raster, use `--top 32 --bottom 128 --no-rotate`.
 
-## Working release checkpoint — 2026-10-30
+   ```sh
+   node printer/test-printer.mjs polaroid --cut feed-partial
+   ```
 
-Prepared v0.1.0 as the first working LAN-printing release. Preserved the exact two legacy comparison dependencies under experiments/legacy and updated the comparison import so a clean checkout is self-contained. The separate nested thermal-photobooth copy Git repository remains local and ignored. Production behavior is unchanged; version and lockfile identify the checkpoint.
+5. Separate cutter test, if needed: feeds to the cutter and requests partial cutting without printing an image.
+
+   ```sh
+   node printer/test-printer.mjs cut --cut feed-partial
+   ```
+
+To inspect encoding without printing, `--dry-run` writes a binary ESC/POS file and a portable bitmap (`.pbm`) preview of raster jobs. The PBM shows only printable pixels; physical side margins and cutter feed are not represented.
+
+```sh
+node printer/test-printer.mjs polaroid --dry-run /tmp/photobooth-test.bin
+node --test printer/escpos.test.mjs
+node printer/test-printer.mjs --help
+```
+
+Override a setting per run using `--host`, `--port`, `--width`, `--top`, `--bottom`, `--feed`, `--cut`, or `--band-height`. `--band-height 128` tests smaller raster bands if a future printer truncates full images. Cut modes `partial`/`full` send `GS V 1`/`GS V 0` directly; `feed-partial`/`feed-full` send `GS V 66 0`/`GS V 65 0`, allowing the printer to feed to its cutting position. Full cutting and banded output have not been physically tested.
+
+## Physical calibration
+
+Measure the printed photo width and height, the top/left/right white margins, and the distance from photo bottom to cut. Initial targets are a 72 mm square, roughly 4 mm top/side margins, and 16 mm bottom margin. Do not assume raster whitespace equals physical whitespace: cutter-to-head distance, previous cut position, and firmware feed all matter.
+
+The user measured the photo at approximately 72 × 72 mm. Upright-in-feed printing left about 13 mm of leading whitespace even with no added top rows. Direct cutting did not reliably reduce that margin and shortened the bottom. The approved solution prints the photo upside down with 32 blank rows before and after it, then feeds and cuts. Turn the receipt upright to move the mechanical leading margin to the visual bottom. The user approved this output; its visual margins target roughly 4 mm above and 16–17 mm below. Exact final side and vertical measurements were not supplied. No reverse-feed commands or system setting changes are needed.
+
+The `--top` and `--bottom` flags name leading/trailing raster whitespace in feed order. With rotation enabled, leading rows affect the visual bottom and trailing rows affect the visual top. Keep physical receipt preview geometry separate from transport orientation in later phases: rotate the final photo for the printer only. Do not add a border inside the photo or double-rotate it in the UI. Use `--no-rotate` only for diagnostics.
+
+## Structure
+
+- `printer/config.json`: LAN address and candidate layout/calibration settings.
+- `printer/transport.mjs`: bounded TCP connection and single submission, no image encoding.
+- `printer/escpos.mjs`: monochrome dithering, bit packing, raster encoding, feed/cut commands.
+- `printer/patterns.mjs`: generated test pattern and dithered image.
+- `printer/test-printer.mjs`: command-line diagnostics and dry runs.
+- `printer/escpos.test.mjs`: encoding, band continuity, margin, and dithering checks.
+- `PHOTOBOOTH_PLAN.md`: implementation status and hardware findings.
+
+## Troubleshooting
+
+- Timeout/refused connection: verify power, Ethernet link, address in the router/self-test receipt, the raw print port, and that the MacBook can reach that network. A DHCP-assigned address may change; check it again before changing printer settings. This tool does not alter network configuration or scan other devices.
+- `EPERM`: the execution sandbox may block LAN connections; allow the specific diagnostic command when prompted, or run it from your own terminal.
+- Nothing visible after text: inspect paper feed; the last printed lines may still be inside the printer. Check cover and paper state.
+- Garbled image: stop further image jobs, check protocol/firmware and buffer state before retrying. Successful TCP submission alone does not verify raster compatibility.
+- Clipped width: compare both edge rules and measure; `--width 512` can test a narrower mode if needed. Do not change the printer's stored settings based on a guess.
+- Failed send: some bytes may already have reached the printer. Inspect it before retrying to avoid duplicate output. No automatic retry or confirmed physical-completion status is implemented.
+
+Protocol references: Epson's [raster command](https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_lv_0.html) and [cut command](https://download4.epson.biz/sec_pubs/pos/reference_en/escpos/gs_cv.html) document command semantics, **not XP-80T firmware compatibility**. The XP-80T behavior recorded above comes from this printer's tests.
+
+## Dithering comparison experiment
+
+While the development server is running, open http://127.0.0.1:5173/experiments/dithering.html. Choose a portrait to compare the actual old processing code, current Floyd–Steinberg, alternating-row Floyd–Steinberg, Atkinson, and Stucki against a grayscale reference. All candidates use the same centre crop and selected resolution. Images remain in browser memory. Start at neutral brightness/contrast; the old and new pipelines apply these controls in different orders, so non-neutral results also compare tonal adjustment behavior.
+
+This separate development page remains a comparison tool; its controls do not change the main app’s selected look. It imports a preserved legacy processing snapshot from experiments/legacy as a reference; it is not part of the single-page production build. The initial gradient demonstrates dot texture rather than portrait quality. Browser upload, resolution selection, brightness and Reset were checked using a generated test image. Print testing of the alternatives remains pending.
+
+The old and current algorithms use identical Floyd–Steinberg weights; a neutral grayscale gradient matched pixel-for-pixel in a local comparison. This does not establish identical results on all photos: float precision, crop/resampling, and non-neutral adjustment order can change patterns. The live processing resolution was increased from 256 to 576 dots to address the visible texture mismatch after capture; processing is capped at 8 fps for responsiveness. Physical phone performance still needs checking.
+
+The comparison also includes **Portra-inspired B&W · Atkinson**: an original portrait-oriented monochrome mix with a smooth curve that lifts shadows/midtones and compresses the endpoints, followed by Atkinson dithering. It does not reproduce a specific Lightroom/XMP preset. No random grain is added; texture comes from dithering. This look is also selectable in the main app. Atkinson is the starting look based on the user’s preference.
+
+## Live look selection and Floyd–Steinberg tuning
+
+The camera and editor offer Atkinson (default), Portra-inspired B&W with Atkinson, Floyd–Steinberg, and Stucki. Selections persist between capture, editor, and retake within the current browser session. Changing looks does not restart the camera. The dropdown and tuning controls are disabled during the countdown to keep the captured look stable. Editor Reset restores Atkinson plus neutral crop and adjustments.
+
+Floyd–Steinberg exposes diffusion strength (0–100%), threshold (64–192), and alternating scan direction. Standard values are 100%, 128, and alternating off; the restore button resets these while keeping Floyd–Steinberg selected. A useful experiment is 75% diffusion, threshold 128, alternating on. Zero diffusion is a plain threshold conversion. The standard 7/16, 3/16, 5/16, 1/16 kernel weights stay fixed; strength scales their total effect. The former alternating-row comparison is available through the scan-direction toggle. Settings are ignored by the other algorithms but retained when switching back.
+
+A synthetic browser camera check verified look changes without restarting the stream, native tuning controls, restoration of standard settings, disabled controls during countdown, custom settings preserved after capture, and selection retained on retake. Production build, lint and all thirty-one tests pass. Actual mobile performance remains device-dependent. Printing is connected through the local backend.
+
+## Print service
+
+`npm run dev` is the normal development command for both frontend and backend. For a built local app, stop the development processes first, then run:
+
+```sh
+npm run build
+npm start
+```
+
+Open http://127.0.0.1:4174. `npm run server` starts only the backend if you need it separately. `PRINT_SERVER_PORT` overrides its default 4174 port; the Vite proxy reads the same variable. `VITE_PORT` overrides development UI port 5173. Restart the backend after changing printer/config.json. The backend binds only to 127.0.0.1. LAN guest browsing and HTTPS have not been enabled.
+
+- `server/encode-job.js`: server-owned layout, packed 180° photo rotation, ESC/POS raster/feed/cut.
+- `server/print-queue.js`: sequential sends, bounded queue (five jobs including the active submission), duplicate-ID protection, failure handling and buffer release.
+- `server/app.js`: validated Express API, local host/origin checks, request limits and built frontend serving.
+- `server/index.js`: local service startup and printer configuration.
+- `src/utils/printClient.js`: packs final upright 1-bit pixels and submits/checks a job.
+- `scripts/dev.js`: starts/stops both local services without another dependency.
+
+API: `POST /api/print` accepts application/octet-stream with exactly 41,472 packed bytes for a 576 × 576 photo. Each row is 72 bytes, MSB first, 1 = black. Required headers are X-Print-Job-Id (UUID), X-Photo-Width: 576, and X-Photo-Height: 576. No client-supplied ESC/POS command or transport target is accepted. Dimensions and payload size are checked before queuing. `GET /api/print/:id` returns queued/sending/submitted/error metadata; `GET /api/health` confirms the service is running, not that the printer is online.
+
+Retries of the same ID/payload return the remembered job; reusing an ID for another image returns 409. The service retains at most 200 job IDs/fingerprints in memory for up to ten minutes (old terminal entries may be evicted at capacity). This history is lost on restart, so checking the printer remains necessary after an ambiguous error or service restart. No image bytes are retained after a submission ends. If a transmission fails, waiting jobs are marked failed without sending them into a possibly incomplete raster buffer. New attempts require an explicit user action.
+
+The API allows local requests only, does not enable CORS, rejects cross-site origins, limits payloads, and bounds pending jobs. Public event access controls and rate limits belong to Phase 4 before any public exposure. No tunnel, account, database or printer settings were added.
+
+Verification: all 31 automated checks pass, including HTTP validation/idempotency and real TCP to a fake printer. One real Atkinson receipt was submitted through the browser Print photo button, API, queue and LAN transport; the user confirmed successful image output, cutting and the thicker visual bottom margin. A separate-port startup test verified that the combined dev command starts both services and Ctrl+C stops both.
+
+## First working release
+
+Version 0.1.0 checkpoints the working local camera/upload/editor and LAN printing flow. The legacy comparison files are included under experiments/legacy so a fresh checkout does not depend on the local thermal-photobooth copy backup. That nested Git repository, installed dependencies, build output and local screenshots are excluded from the main repository.
+
+The logo source is kassenbon.svg. A display copy at src/assets/logo.svg preserves its paths while trimming the oversized export canvas through the viewBox. Landing and shared headers use that asset; the dark camera theme displays it in cream. The original source file is unchanged.
+
+## Working release v0.2.0
+
+Checkpoints Kassenbon SVG branding and the supplied Merchant Copy font, the receipt-style home and editor, and the simplified photobooth camera with Atkinson preview. The editor retains effect and crop controls, adds bordered PNG saving, and separates Print photo from Retake/Choose photo. Clicking the centered header logo returns home. Camera and editor footers are removed. LAN printing settings remain unchanged. Phone live-camera access still requires HTTPS.
+
+Release validation: all 31 automated tests, ESLint, production build, and whitespace checks pass. Camera countdown and editor controls were checked in the browser. Automated in-app browser download verification timed out; PNG saving still needs a manual browser check. No physical print was sent for this release checkpoint.

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { cropGeometry } from '../utils/imageCrop.js';
-import { processPhoto } from '../utils/imageProcessing.js';
+import { PAPER, PHOTO_SIZE, processPhoto } from '../utils/imageProcessing.js';
 import Receipt from './Receipt.jsx';
 import DitherControls from './DitherControls.jsx';
 import { DEFAULT_LOOK } from '../../shared/photo-look.js';
@@ -74,6 +74,27 @@ export default function Editor({ source, look, onLookChange, onReplace, onHome }
       setPrintJob({ id, state: cause.notAccepted ? 'error' : 'unknown', error: `${cause.message === 'Failed to fetch' ? 'Could not reach the print service on the MacBook.' : cause.message}${cause.notAccepted ? '' : ' Check the printer before retrying; the original request may have printed.'}` });
     } finally { printLock.current = false; }
   }
+  function saveImage() {
+    if (busy || error || !result?.canvas) return;
+    const image = document.createElement('canvas');
+    image.width = PAPER.width;
+    image.height = PAPER.top + PHOTO_SIZE + PAPER.bottom;
+    const context = image.getContext('2d');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, image.width, image.height);
+    context.drawImage(result.canvas, PAPER.side, PAPER.top);
+    image.toBlob(blob => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.download = 'kassenbon-photo.png';
+      link.href = url;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  }
   function backToEdit() { printRequest.current = null; setPrintJob(null); }
   const geometry = cropGeometry(source.width, source.height, crop, source.mirrored);
   const handlers = {
@@ -118,20 +139,13 @@ export default function Editor({ source, look, onLookChange, onReplace, onHome }
 
   return (
     <section className="editor-section">
-      <div className="editor-intro">
-        <button className="text-button" onClick={onHome}>← Start over</button>
-        <p className="eyebrow">02 / Make it yours</p>
-        <h1 ref={heading} tabIndex="-1">A little fine-tuning.</h1>
-        <p className="muted">Your photo, just as it’ll look on paper.</p>
-      </div>
       <div className="editor-layout">
         <div className="preview-stage">
           <div className="receipt-holder"><Receipt photo={result?.canvas} interactive handlers={handlers} busy={busy} /></div>
-          <p className="preview-caption"><span className="status-dot" /> {busy ? 'Updating preview…' : 'Thermal print preview'}</p>
           <p className="stage-note">Drag the photo to find your frame.</p>
         </div>
         <div className="editor-controls">
-          <div className="controls-title"><h2>Your adjustments</h2><button className="text-button" onClick={reset}>Reset</button></div>
+          <div className="controls-title"><h2 ref={heading} tabIndex="-1">YOUR ADJUSTMENTS</h2><button className="text-button" onClick={reset}>Reset</button></div>
           <DitherControls look={look} onChange={onLookChange} />
           <Slider label="Zoom" value={crop.zoom} min={1} max={3} step={0.01} display={`${crop.zoom.toFixed(2)}×`} onChange={zoom => updateCrop({ ...crop, zoom })} />
           <div className="reposition"><span>Reposition</span><div className="nudge-buttons" role="group" aria-label="Reposition photo">
@@ -142,9 +156,13 @@ export default function Editor({ source, look, onLookChange, onReplace, onHome }
           <Slider label="Contrast" value={contrast} min={-100} max={100} display={contrast > 0 ? `+${contrast}` : contrast} onChange={setContrast} />
           {error && <p className="error" role="alert">{error}</p>}
           <div className="editor-bottom">
-            <button className="primary" disabled={busy || !!error} onClick={() => printPhoto()}>Print photo <span aria-hidden="true">↗</span></button>
-            <p className="demo-note">One photo · one thermal receipt</p>
-            <button className="secondary" onClick={onReplace}>{source.kind === 'camera' ? 'Retake photo' : 'Choose another photo'}</button>
+            <div className="print-save-actions">
+              <button className="primary" disabled={busy || !!error} onClick={() => printPhoto()}>PRINT PHOTO</button>
+              <button className="secondary save-image" disabled={busy || !!error} onClick={saveImage} aria-label="Save image" title="Save image">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" /></svg>
+              </button>
+            </div>
+            <button className="secondary" onClick={onReplace}>{source.kind === 'camera' ? 'RETAKE PHOTO' : 'CHOOSE PHOTO'}</button>
           </div>
         </div>
       </div>

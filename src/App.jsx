@@ -4,6 +4,7 @@ import Editor from './components/Editor.jsx';
 import Receipt from './components/Receipt.jsx';
 import { createSamplePhoto, loadPhoto } from './utils/imageProcessing.js';
 import { DEFAULT_LOOK } from '../shared/photo-look.js';
+import logo from './assets/logo.svg';
 
 export default function App() {
   const [screen, setScreen] = useState('welcome');
@@ -19,7 +20,7 @@ export default function App() {
     loadId.current++;
     setLoading(false); setSource(null); setError(''); setScreen('welcome');
   }
-  function openCamera() { loadId.current++; setLoading(false); setError(''); setSource(null); setScreen('camera'); }
+  function openCamera() { loadId.current++; setLoading(false); setError(''); setSource(null); setLook(DEFAULT_LOOK); setScreen('camera'); }
   function openEditor(photo) { loadId.current++; setLoading(false); setSource({ ...photo, id: loadId.current }); setScreen('editor'); }
   async function selectFile(event) {
     const file = event.target.files?.[0];
@@ -38,38 +39,34 @@ export default function App() {
   }
   const upload = () => fileInput.current.click();
   return (
-    <div className="app-shell">
+    <div className={`app-shell${screen === 'welcome' ? ' receipt-home' : screen === 'camera' ? ' booth-interior' : screen === 'editor' ? ' receipt-editor' : ''}`}>
       <header className="site-header">
-        <button className="wordmark" onClick={home} aria-label="Little Moments home"><span className="brand-icon" aria-hidden="true">✳</span> little moments<span className="wordmark-period">.</span></button>
-        <span className="mode-badge"><span className="status-dot" /> Thermal photobooth</span>
+        <div className="header-brand">
+          <button className="wordmark" onClick={home} aria-label="Kassenbon home"><img className="brand-logo" src={logo} alt="Kassenbon" /></button>
+        </div>
       </header>
       <main>
         <input ref={fileInput} type="file" accept="image/*" hidden onChange={selectFile} aria-label="Choose a photo" />
         {loading && <p className="notice" role="status">Opening your photo…</p>}
         {error && <div className="notice error" role="alert">{error} <button className="text-button" onClick={upload}>Choose another</button></div>}
-        {screen === 'welcome' && <section className="welcome">
-          <div className="welcome-copy">
-            <p className="eyebrow"><span className="short-line" /> The thermal photobooth</p>
-            <h1>Big memories.<br /><span>Little prints.</span></h1>
-            <p className="welcome-description">Turn a passing moment into something you can hold. A photo, a little grain, a keepsake.</p>
-            <div className="welcome-actions">
-              <button className="primary" disabled={loading} onClick={openCamera}>Take a photo <span aria-hidden="true">◎</span></button>
-              <button className="secondary" disabled={loading} onClick={upload}>Upload a photo <span aria-hidden="true">↥</span></button>
-            </div>
-            <p className="privacy-note">No sign-up. Photos aren’t saved after printing.</p>
+        {screen === 'welcome' && <section className="welcome-ticket" aria-labelledby="receipt-title">
+          <h1 id="receipt-title" className="brand-title"><img className="brand-logo brand-logo--hero" src={logo} alt="Kassenbon" /></h1>
+          <div className="ticket-rule" aria-hidden="true" />
+          <div className="ticket-photo"><Receipt photo={sample.canvas} /></div>
+          <div className="ticket-rule" aria-hidden="true" />
+          <div className="ticket-actions">
+            <button className="primary" disabled={loading} onClick={openCamera}>TAKE A PHOTO <span aria-hidden="true">→</span></button>
+            <button className="secondary" disabled={loading} onClick={upload}>UPLOAD A PHOTO <span aria-hidden="true">↑</span></button>
           </div>
-          <div className="welcome-art" aria-label="Example thermal receipt">
-            <div className="art-cross cross-one" aria-hidden="true">+</div><div className="art-cross cross-two" aria-hidden="true">+</div>
-            <div className="sample-receipt"><Receipt photo={sample.canvas} /></div>
-            <div className="art-caption"><span aria-hidden="true">↖</span> imperfect in the best way</div>
-            <span className="art-label">BLACK & WHITE. FULL OF FEELING.</span>
-          </div>
-          <div className="welcome-steps"><span><b>01</b> Take or upload</span><span><b>02</b> Make it yours</span><span><b>03</b> Preview your print</span></div>
+          <div className="ticket-total ticket-row"><span>TOTAL</span><strong>ONE GOOD MEMORY</strong></div>
+          <div className="ticket-barcode" aria-hidden="true" />
+          <p className="ticket-thanks">THANK YOU FOR STOPPING BY</p>
+          <p className="ticket-last-line">PLEASE KEEP YOUR LITTLE MOMENT.</p>
         </section>}
-        {screen === 'camera' && <Camera look={look} onLookChange={setLook} onCapture={openEditor} onBack={home} onUpload={upload} />}
+        {screen === 'camera' && <Camera onCapture={openEditor} onUpload={upload} />}
         {screen === 'editor' && source && <Editor key={source.id} source={source} look={look} onLookChange={setLook} onHome={home} onReplace={source.kind === 'camera' ? openCamera : upload} />}
       </main>
-      <footer className="site-footer"><span>A little moment, on paper.</span><span>Made to be kept <span aria-hidden="true">↗</span></span></footer>
+      {screen === 'welcome' && <footer className="site-footer"><span>A little moment, on paper.</span><span>Made to be kept <span aria-hidden="true">↗</span></span></footer>}
     </div>
   );
 }

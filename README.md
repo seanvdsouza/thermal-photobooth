@@ -21,7 +21,7 @@ npm test
 
 The flow is **Take or upload → shared editor → Print photo → print status**. Upload opens the device file picker directly. The editor combines crop, zoom, brightness, contrast, Reset, and an upright receipt preview. Drag the image or use the arrow buttons to reposition it. Retake/Choose another replaces the source; cancelling the file picker keeps the current edit. Unsupported or corrupt files show an error, and files larger than 25 MB are rejected.
 
-The camera starts only after Take a photo. It uses a live square preview using the selected photo look at 576 × 576 and up to 8 frames per second, with front-camera mirroring and rear-camera output unmirrored when the device reports its facing direction. Capture starts a visible three-second countdown (3 → 2 → 1), then saves the original camera frame for the same full-quality thermal editor used by uploads. The live preview uses the same processing resolution as the final photo to keep dot texture consistent; capture still saves the original camera frame for editing. Capture and camera switching are disabled during the countdown; leaving the camera cancels it. The live preview and final editor share the same pixel-processing function. Camera tracks stop when leaving the camera or switching it. Browser camera access generally requires localhost or trusted HTTPS. HTTP access from a phone to a MacBook's LAN address is insufficient for camera testing; guest HTTPS is Phase 4. Actual iPhone/Safari, Android/Chrome, front/rear switching, and camera permission behavior still need testing on those devices.
+The camera starts only after Take a photo. It uses a live square preview using Atkinson at 576 × 576 and up to 8 frames per second, with front-camera mirroring and rear-camera output unmirrored when the device reports its facing direction. Capture starts a visible three-second countdown (3 → 2 → 1), then saves the original camera frame for the same full-quality thermal editor used by uploads. The live preview uses the same processing resolution as the final photo to keep dot texture consistent; capture still saves the original camera frame for editing. Capture and camera switching are disabled during the countdown; leaving the camera cancels it. The live preview and final editor share the same pixel-processing function. Camera tracks stop when leaving the camera or switching it. Browser camera access generally requires localhost or trusted HTTPS. HTTP access from a phone to a MacBook's LAN address is insufficient for camera testing; guest HTTPS is Phase 4. Actual iPhone/Safari, Android/Chrome, front/rear switching, and camera permission behavior still need testing on those devices.
 
 Photo editing and dithering happen in browser memory. Only the final packed monochrome square is sent to the MacBook when Print photo is pressed; the original source never goes to the backend. The decoded original is preserved; changes run through square crop/mirroring, 576-dot resize, monochrome tone conversion, brightness, contrast, and the selected dithering method. A short debounce avoids processing every pointer event. One final monochrome result supplies the editor and demo result. There are no preview-only photo filters or repeated PNG encode/decode cycles. Reset restores the crop and all adjustments.
 
@@ -31,6 +31,12 @@ The backend rotates the already-processed photo once, adds the approved 32 leadi
 
 Desktop and 390-pixel phone layouts, file upload, native slider controls, reposition buttons, Reset, corrupt-image handling, and demo navigation were verified in the local browser. Thirty-one automated tests cover raster encoding, dithering, candidate algorithms, rotation, crop boundaries, and mirrored crop drawing. Physical phone/camera checks remain manual; viewport resizing does not prove device compatibility.
 
+The landing page uses a narrow white receipt layout with the supplied Merchant Copy font, the supplied Kassenbon SVG logo, sample image, two photo buttons and a decorative (non-scannable) barcode. Font files are served locally from merchant-copy-font; the original font readme and license information are preserved there. The supplied license describes private, non-commercial use. No external font service or package is used.
+
+The camera screen is styled as a photobooth interior, with burgundy curtain edges, warm static lights around a metal preview frame and a red shutter button. The supplied Merchant Copy font is used across the interface, with its display variant for headings. The shared page header centers the supplied SVG logo, which acts as the Home button; the badge, header divider, back link, subtitle and camera-frame captions have been removed. The camera uses Atkinson with effect controls available in the editor only. The centered cream logo returns home; the camera has no heading or shutter caption, and its auxiliary buttons use uppercase labels. This is CSS/markup only; the photo pixels and print layout are unaffected.
+
+The editor and print-status screens share the landing page’s white receipt theme: Merchant Copy text, black controls and square buttons, dashed dividers, and a paper preview. Desktop keeps adjustments beside the preview; mobile stacks them in a narrow receipt-like column. The editor has a larger borderless preview, a single Effect label, uppercase action labels, and an icon-only Save image button beside Print photo. Saving exports the current cropped and processed image as a PNG with white borders matching the receipt preview; print-job processing is unchanged.
+
 ## Frontend structure
 
 - `src/App.jsx`: source selection, file loading, and navigation using React state.
@@ -39,7 +45,7 @@ Desktop and 390-pixel phone layouts, file upload, native slider controls, reposi
 - `src/components/Receipt.jsx`: upright paper proportions and the processed photo canvas.
 - `src/utils/imageCrop.js`: viewport-independent, bounded crop geometry shared by camera and editor.
 - `src/utils/imageProcessing.js`: source decoding and canvas processing.
-- `src/components/DitherControls.jsx`: method dropdown and Floyd–Steinberg tuning, shared by camera and editor.
+- `src/components/DitherControls.jsx`: editor effect dropdown and Floyd–Steinberg tuning.
 - `shared/photo-look.js`: pure pixel processing and default look (Atkinson).
 - `shared/dither-options.js` and `shared/portra-monochrome.js`: shared algorithms and film-inspired tone conversion.
 - `shared/dither.js`: pure dithering shared by browser and printer diagnostics.
@@ -171,3 +177,11 @@ Verification: all 31 automated checks pass, including HTTP validation/idempotenc
 ## First working release
 
 Version 0.1.0 checkpoints the working local camera/upload/editor and LAN printing flow. The legacy comparison files are included under experiments/legacy so a fresh checkout does not depend on the local thermal-photobooth copy backup. That nested Git repository, installed dependencies, build output and local screenshots are excluded from the main repository.
+
+The logo source is kassenbon.svg. A display copy at src/assets/logo.svg preserves its paths while trimming the oversized export canvas through the viewBox. Landing and shared headers use that asset; the dark camera theme displays it in cream. The original source file is unchanged.
+
+## Working release v0.2.0
+
+Checkpoints Kassenbon SVG branding and the supplied Merchant Copy font, the receipt-style home and editor, and the simplified photobooth camera with Atkinson preview. The editor retains effect and crop controls, adds bordered PNG saving, and separates Print photo from Retake/Choose photo. Clicking the centered header logo returns home. Camera and editor footers are removed. LAN printing settings remain unchanged. Phone live-camera access still requires HTTPS.
+
+Release validation: all 31 automated tests, ESLint, production build, and whitespace checks pass. Camera countdown and editor controls were checked in the browser. Automated in-app browser download verification timed out; PNG saving still needs a manual browser check. No physical print was sent for this release checkpoint.
